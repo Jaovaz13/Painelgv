@@ -1,0 +1,34 @@
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+.venv/
+venv/
+ENV/
+.env
+
+# === Streamlit ===
+.streamlit/
+secrets.toml
+
+# === DATABASE (Importante) ===
+# Mantemos data/indicadores.db FORA do ignore para que ele suba povoado.
+# Se migrar para Postgres futuramente, adicione data/*.db aqui.
+
+# === ARQUIVOS PESADOS (Bloquear para Deploy) ===
+# Estes arquivos impedem o deploy no Streamlit Cloud/GitHub
+painel_gv_completo.zip
+data/raw/
+db/
+logs/
+presentations/
+reports/*.docx
+reports/*.pptx
+!reports/.gitkeep
+
+# === OS ===
+.DS_Store
+Thumbs.db
