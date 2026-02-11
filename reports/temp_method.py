@@ -1,3 +1,4 @@
+from typing import Dict
 def _build_thematic_blocks_by_groups(self, indicators_data: Dict[str, pd.DataFrame]):
         """Constrói blocos temáticos organizados por grupos estratégicos."""
         # Organizar indicadores por grupos
@@ -84,3 +85,4 @@ def _build_thematic_blocks_by_groups(self, indicators_data: Dict[str, pd.DataFra
             self._format_paragraph("*Dados insuficientes para análise de tendência*")
         
         self._format_paragraph("")  # Espaçamento
+
