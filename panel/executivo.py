@@ -8,6 +8,7 @@ import plotly.express as px
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
+from typing import Dict, List, Any
 
 from database import get_timeseries, list_indicators
 from monitoring.health_checker import health_checker
@@ -224,7 +225,7 @@ def create_executive_summary() -> str:
     # 📊 **Resumo Executivo** - {MUNICIPIO}/{UF}
     **Data:** {datetime.now().strftime('%d/%m/%Y')}
     
-    **Status Geral:** {metrics['status']:.1%}
+    **Status Geral:** {metrics['system_score']:.1%}
     
     **KPIs Principais:**
     - Taxa de Atualização: {metrics['atualizacao']:.1f}%

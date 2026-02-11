@@ -2,6 +2,7 @@
 Catálogo de indicadores amigáveis para o painel.
 Mapeia chaves técnicas para nomes compreensíveis e descrições.
 """
+from typing import Dict, List
 
 # Catálogo completo de indicadores com nomes amigáveis
 CATALOGO_INDICADORES = {
