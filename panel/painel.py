@@ -20,7 +20,6 @@ import plotly.graph_objects as go
 
 from config import LOG_FORMAT, LOG_LEVEL, MUNICIPIO, UF
 from database import get_timeseries, init_db, list_indicators
-from etl.ibge import get_pib_timeseries
 from utils.status_check import get_indicator_status
 from utils.analytics import inject_google_analytics
 
@@ -60,7 +59,7 @@ logger = logging.getLogger(__name__)
 # Inicializar banco
 init_db()
 
-# --- Deferir imports pesados ---
+# --- Deferir imports pesados (Lazy Loading para Estabilidade no Deploy) ---
 def lazy_estimar_pib(*args, **kwargs):
     from analytics.estimativa_pib import estimar_pib
     return estimar_pib(*args, **kwargs)
@@ -158,30 +157,6 @@ def card_plotly(label, value, delta=None, unit="", fonte=""):
     )
     return fig
 
-def get_pib_per_capita_df():
-    df_pib = cached_get_timeseries("PIB_TOTAL", "IBGE")
-    df_pop = cached_get_timeseries("POPULACAO_DETALHADA", "IBGE/SIDRA")
-    if df_pop.empty: df_pop = cached_get_timeseries("POPULACAO", "IBGE")
-    
-    if df_pib.empty or df_pop.empty: return pd.DataFrame()
-        
-    merged = pd.merge(df_pib, df_pop, on="Ano", suffixes=("_pib", "_pop"))
-    if merged.empty: return pd.DataFrame()
-        
-    merged = merged.sort_values("Ano")
-    merged["Valor"] = merged["Valor_pib"] / merged["Valor_pop"]
-    merged["Unidade"] = "R$ / Hab"
-    return merged[["Ano", "Valor", "Unidade"]]
-
-def get_pib_growth_df():
-    df_pib = cached_get_timeseries("PIB_TOTAL", "IBGE")
-    if df_pib.empty or len(df_pib) < 2: return pd.DataFrame()
-    
-    df_pib = df_pib.sort_values("Ano")
-    df_pib["Valor"] = df_pib["Valor"].pct_change() * 100
-    df_pib["Unidade"] = "%"
-    return df_pib.dropna(subset=["Valor"])
-
 def fmt_br(val: float, currency: bool = False, decimals: int = 0) -> str:
     try:
         if pd.isna(val) or val is None: return "N/D"
@@ -203,10 +178,29 @@ def render_indicator_header(indicator_key: str, source: str, title: str):
         badge = f' <span style="color:orange;font-size:0.8em;">{status["message"]} — <a href="{status["url"]}" target="_blank">{status["url"]}</a></span>'
     st.markdown(f"### {title}{badge}", unsafe_allow_html=True)
 
+def get_pib_per_capita_df():
+    df_pib = cached_get_timeseries("PIB_TOTAL", "IBGE")
+    df_pop = cached_get_timeseries("POPULACAO_DETALHADA", "IBGE/SIDRA")
+    if df_pop.empty: df_pop = cached_get_timeseries("POPULACAO", "IBGE")
+    if df_pib.empty or df_pop.empty: return pd.DataFrame()
+    merged = pd.merge(df_pib, df_pop, on="Ano", suffixes=("_pib", "_pop"))
+    if merged.empty: return pd.DataFrame()
+    merged = merged.sort_values("Ano")
+    merged["Valor"] = merged["Valor_pib"] / merged["Valor_pop"]
+    merged["Unidade"] = "R$ / Hab"
+    return merged[["Ano", "Valor", "Unidade"]]
+
+def get_pib_growth_df():
+    df_pib = cached_get_timeseries("PIB_TOTAL", "IBGE")
+    if df_pib.empty or len(df_pib) < 2: return pd.DataFrame()
+    df_pib = df_pib.sort_values("Ano")
+    df_pib["Valor"] = df_pib["Valor"].pct_change() * 100
+    df_pib["Unidade"] = "%"
+    return df_pib.dropna(subset=["Valor"])
+
 def get_secao_by_key(key: str) -> str:
     for secao, keys in INDICATOR_MAPPING.items():
         if key in keys: return secao
-    # Tenta encontrar no catálogo a fonte se não estiver no mapping manual
     info = CATALOGO_INDICADORES.get(key, {})
     fonte = info.get("fonte")
     return SECAO_POR_FONTE.get(fonte, SECAO_PADRAO)
@@ -423,27 +417,6 @@ def render_trabalho_renda(ano_inicio, ano_fim, modo):
             fig = px.line(jobs_rais, x="Ano", y="Valor", markers=True)
             st.plotly_chart(fig, use_container_width=True)
 
-def render_negocios(ano_inicio, ano_fim, modo):
-    st.subheader("Indicadores de Negócios e Empreendedorismo")
-    empresas = cached_get_timeseries("EMPRESAS_ATIVAS", "SEBRAE")
-    empregos = cached_get_timeseries("EMPREGOS_SEBRAE", "SEBRAE")
-    estab = cached_get_timeseries("ESTABELECIMENTOS_SEBRAE", "SEBRAE")
-
-    col_a, col_b, col_c = st.columns(3)
-    with col_a:
-        if not empresas.empty:
-            st.metric("🏢 Empresas Ativas", fmt_br(empresas.iloc[-1]["Valor"]))
-    with col_b:
-        if not empregos.empty:
-            st.metric("👥 Empregados (Sebrae)", fmt_br(empregos.iloc[-1]["Valor"]))
-    with col_c:
-        if not estab.empty:
-            st.metric("🏬 Estabelecimentos", fmt_br(estab.iloc[-1]["Valor"]))
-
-    if not empresas.empty:
-        fig = px.line(empresas, x="Ano", y="Valor", title="Evolução de Empresas Ativas (Sebrae)")
-        st.plotly_chart(fig, use_container_width=True)
-
 def render_pib_estimado(ano_inicio, ano_fim):
     st.subheader("Projeção do PIB Municipal")
     st.info("Visualização de projeções baseadas em modelos estatísticos reais.")
@@ -531,9 +504,15 @@ def render_relatorios(ano_ini, ano_fim):
                      st.error(f"Erro: {e}")
 
 def render_outras_paginas(pagina, ano_inicio, ano_fim, modo):
-    # Fallback para outras categorias dinâmicas
     all_inds = cached_list_indicators()
     inds_to_show = [i for i in all_inds if get_secao_by_key(i["indicator_key"]) == pagina]
+
+    # EDUCAÇÃO: por política institucional, exibir apenas séries oriundas de arquivos reais (data/raw)
+    if pagina == "Educação":
+        st.info("Educação: indicadores exibidos exclusivamente a partir de dados reais no banco (origem INEP).")
+        # Filtragem adicional se necessário, mas o catálogo já separa por fonte.
+        # Aqui garantimos que apenas fontes reais sejam mostradas se houver fallback manual.
+        inds_to_show = [i for i in inds_to_show if i.get("source") in ["INEP", "INEP_RAW"]]
 
     if not inds_to_show:
         st.info("Nenhum indicador disponível nesta categoria.")
@@ -547,6 +526,8 @@ def render_outras_paginas(pagina, ano_inicio, ano_fim, modo):
         
         meta = lazy_get_indicator_info(item["indicator_key"])
         st.subheader(meta.get("nome", item["indicator_key"]))
+        st.caption(f"Fonte: {item['source']} | Unidade: {item.get('unit', '')}")
+        
         st.plotly_chart(px.line(df, x="Ano", y="Valor", markers=True), use_container_width=True)
         
         if modo == "Técnico":
@@ -555,7 +536,7 @@ def render_outras_paginas(pagina, ano_inicio, ano_fim, modo):
                 st.dataframe(df)
 
 def main() -> None:
-    # Integrar Analytics via variável de ambiente
+    # Integrar Analytics
     ga_id = os.getenv("GA_TAG_ID")
     if ga_id:
         inject_google_analytics(ga_id)
@@ -578,7 +559,6 @@ def main() -> None:
     if pagina == "Visão Geral": render_visao_geral(ano_inicio, ano_fim, modo)
     elif pagina == "Economia": render_economia(ano_inicio, ano_fim, modo)
     elif pagina == "Trabalho & Renda": render_trabalho_renda(ano_inicio, ano_fim, modo)
-    elif pagina == "Negócios": render_negocios(ano_inicio, ano_fim, modo)
     elif pagina == "Sustentabilidade": render_sustentabilidade(ano_inicio, ano_fim, modo)
     elif pagina == "PIB Estimado": render_pib_estimado(ano_inicio, ano_fim)
     elif pagina == "Dashboard Executivo": lazy_create_executive_dashboard()
