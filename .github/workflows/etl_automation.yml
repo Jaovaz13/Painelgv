@@ -17,7 +17,7 @@ jobs:
     - name: Configurar Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.11'
+        python-version: '3.12'
 
     - name: Instalar dependências
       run: |
@@ -26,11 +26,10 @@ jobs:
 
     - name: Executar Extração de Dados (ETL)
       env:
-        # Estas variáveis devem ser configuradas no GitHub (Settings > Secrets)
-        DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        MUNICIPIO: ${{ secrets.MUNICIPIO }}
-        COD_IBGE: ${{ secrets.COD_IBGE }}
-        UF: ${{ secrets.UF }}
+        DATABASE_URL: "${{ secrets.DATABASE_URL }}"
+        MUNICIPIO: "${{ secrets.MUNICIPIO }}"
+        COD_IBGE: "${{ secrets.COD_IBGE }}"
+        UF: "${{ secrets.UF }}"
       run: |
         # Roda o script mestre que integra todos os dados
         python etl/run_all.py
