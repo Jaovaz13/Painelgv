@@ -8,6 +8,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import pandas as pd
+from typing import Dict, Any
 
 from monitoring.health_checker import health_checker
 from utils.alert_manager import alert_manager
