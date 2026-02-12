@@ -109,44 +109,25 @@ def processar_serie_empresas(dados: Dict) -> List[Dict]:
     return serie
 
 
-def salvar_empresas_no_banco(session, dados: List[Dict]):
-    """Salva dados de empresas no banco de dados"""
-    for item in dados:
-        # Verificar se já existe para evitar violação de constraint
-        existing = session.query(Indicator).filter_by(
-            indicator_key="NUM_EMPRESAS",
-            source="RAIS",
-            year=item["Ano"]
-        ).first()
+def salvar_empresas_no_banco(dados: List[Dict]):
+    """Salva dados de empresas no banco de dados usando upsert_indicators"""
+    if not dados:
+        return
         
-        if existing:
-            # Atualiza registro existente
-            existing.value = item["Valor"]
-            existing.collected_at = datetime.now()
-            session.commit()
-        else:
-            # Cria novo registro
-            indicator = Indicator(
-                indicator_key="NUM_EMPRESAS",
-                source="RAIS",
-                year=item["Ano"],
-                value=item["Valor"],
-                municipality_code="3127701",
-                municipality_name="Governador Valadares",
-                uf="MG",
-                unit="Unidades",
-                collected_at=datetime.now()
-            )
-            session.add(indicator)
+    df = pd.DataFrame(dados)
+    df = df.rename(columns={"Ano": "year", "Valor": "value"})
     
-    logger.info(f"Salvos {len(dados)} registros de Número de Empresas")
+    upsert_indicators(
+        df,
+        indicator_key="NUM_EMPRESAS",
+        source="RAIS",
+        category="Negócios"
+    )
 
 
 def run_etl_empresas_rais():
     """Executa ETL completo para dados de Número de Empresas"""
     logger.info("Iniciando ETL para dados de Número de Empresas")
-    
-    session = get_session()
     
     try:
         # Extrair dados de empresas
@@ -155,7 +136,7 @@ def run_etl_empresas_rais():
         if dados_empresas:
             serie_empresas = processar_serie_empresas(dados_empresas)
             if serie_empresas:
-                salvar_empresas_no_banco(session, serie_empresas)
+                salvar_empresas_no_banco(serie_empresas)
             else:
                 logger.warning("Nenhum dado de empresas encontrado")
         else:
@@ -164,15 +145,11 @@ def run_etl_empresas_rais():
                 "Verifique: (1) API RAIS, (2) arquivo data/raw/empresas_rais.csv"
             )
         
-        session.commit()
         logger.info("ETL para dados de Número de Empresas concluído com sucesso")
         
     except Exception as e:
-        session.rollback()
         logger.error(f"Erro no ETL de Empresas: {e}")
         raise
-    finally:
-        session.close()
 
 
 if __name__ == "__main__":

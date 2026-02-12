@@ -23,6 +23,7 @@ def run_all() -> Dict[str, Any]:
     
     # Importações Lazy para evitar carregamento desnecessário se não for rodar
     import etl.demograficos as demograficos
+    import etl.demografia as demografia
     import etl.negocios_sebrae as negocios_sebrae
     import etl.educacao_inep as educacao_inep
     import etl.saude as saude
@@ -38,6 +39,7 @@ def run_all() -> Dict[str, Any]:
     # Alguns usam .run(), outros usam .run_etl_...
     processos = [
         {"mod": demograficos, "func": demograficos.run, "name": "Demograficos (População/IDH/Gini)"},
+        {"mod": demografia, "func": demografia.run, "name": "Demografia Detalhada (Pirâmide Etária)"},
         {"mod": negocios_sebrae, "func": negocios_sebrae.run, "name": "Sebrae (Empresas/Empregos)"},
         {"mod": educacao_inep, "func": educacao_inep.run, "name": "INEP (Educação)"},
         {"mod": saude, "func": saude.run, "name": "Saúde (Mortalidade)"},

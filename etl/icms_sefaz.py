@@ -109,44 +109,25 @@ def processar_serie_icms(dados: Dict) -> List[Dict]:
     return serie
 
 
-def salvar_icms_no_banco(session, dados: List[Dict]):
-    """Salva dados do ICMS no banco de dados"""
-    for item in dados:
-        # Verificar se já existe para evitar violação de constraint
-        existing = session.query(Indicator).filter_by(
-            indicator_key="RECEITA_ICMS",
-            source="SEFAZ_MG",
-            year=item["Ano"]
-        ).first()
+def salvar_icms_no_banco(dados: List[Dict]):
+    """Salva dados do ICMS no banco de dados usando upsert_indicators"""
+    if not dados:
+        return
         
-        if existing:
-            # Atualiza registro existente
-            existing.value = item["Valor"]
-            existing.collected_at = datetime.now()
-            session.commit()
-        else:
-            # Cria novo registro
-            indicator = Indicator(
-                indicator_key="RECEITA_ICMS",
-                source="SEFAZ_MG",
-                year=item["Ano"],
-                value=item["Valor"],
-                municipality_code="3127701",
-                municipality_name="Governador Valadares",
-                uf="MG",
-                unit="R$",
-                collected_at=datetime.now()
-            )
-            session.add(indicator)
+    df = pd.DataFrame(dados)
+    df = df.rename(columns={"Ano": "year", "Valor": "value"})
     
-    logger.info(f"Salvos {len(dados)} registros de ICMS")
+    upsert_indicators(
+        df,
+        indicator_key="RECEITA_ICMS",
+        source="SEFAZ_MG",
+        category="Economia"
+    )
 
 
 def run_etl_icms_sefaz():
     """Executa ETL completo para dados do ICMS"""
     logger.info("Iniciando ETL para dados do ICMS")
-    
-    session = get_session()
     
     try:
         # Extrair dados do ICMS
@@ -155,7 +136,7 @@ def run_etl_icms_sefaz():
         if dados_icms:
             serie_icms = processar_serie_icms(dados_icms)
             if serie_icms:
-                salvar_icms_no_banco(session, serie_icms)
+                salvar_icms_no_banco(serie_icms)
             else:
                 logger.warning("Nenhum dado de ICMS encontrado")
         else:
@@ -164,15 +145,11 @@ def run_etl_icms_sefaz():
                 "Verifique: (1) API SEFAZ-MG, (2) arquivo data/raw/icms_sefaz.csv"
             )
         
-        session.commit()
         logger.info("ETL para dados do ICMS concluído com sucesso")
         
     except Exception as e:
-        session.rollback()
         logger.error(f"Erro no ETL do ICMS: {e}")
         raise
-    finally:
-        session.close()
 
 
 if __name__ == "__main__":

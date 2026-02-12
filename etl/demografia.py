@@ -1,9 +1,16 @@
 import pandas as pd
 import logging
+import sys
+import os
+
+# Ajuste do path para permitir importações da raiz (com prioridade)
+root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if root_dir not in sys.path:
+    sys.path.insert(0, root_dir)
+
 from etl.utils import padronizar
 from config import COD_IBGE, MUNICIPIO, UF
 from database import upsert_indicators
-
 from utils.network import safe_request
 
 logger = logging.getLogger(__name__)
@@ -14,8 +21,8 @@ def populacao_por_idade_sexo():
     Tabela 6579 - População residente, por grupos de idade e sexo.
     """
     # Exemplo IBGE – População por sexo e idade (conforme sugestão do usuário)
-    # n6 é nível municipal
-    url = f"https://apisidra.ibge.gov.br/values/t/6579/n6/{COD_IBGE}"
+    # n6 é nível municipal, p/all para série histórica completa
+    url = f"https://apisidra.ibge.gov.br/values/t/6579/p/all/n6/{COD_IBGE}"
     
     try:
         data = safe_request(url)
@@ -25,12 +32,14 @@ def populacao_por_idade_sexo():
             return pd.DataFrame()
             
         df = pd.DataFrame(data[1:])
-        # V: Valor, D3C: Ano
-        df = df.rename(columns={"V": "valor", "D3C": "ano"})
+        # D2C: Ano, V: Valor, D3C: Variável
+        df = df.rename(columns={"V": "valor", "D2C": "ano"})
         df["valor"] = pd.to_numeric(df["valor"], errors="coerce")
         df["ano"] = pd.to_numeric(df["ano"], errors="coerce")
         df["mes"] = 0
         
+        # Filtrar apenas o que tem valor e ano válido (ex: ano > 1900)
+        df = df[df["ano"] > 1900]
         df = df[["valor", "ano", "mes"]].dropna()
         
         return padronizar(

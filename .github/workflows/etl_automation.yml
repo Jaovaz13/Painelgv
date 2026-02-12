@@ -26,6 +26,8 @@ jobs:
 
     - name: Configurar variáveis de ambiente
       env:
+        # Nota: O linter pode mostrar warnings aqui, mas a sintaxe está correta
+        # Referência: https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions
         SECRET_DATABASE_URL: ${{ secrets.DATABASE_URL }}
         SECRET_MUNICIPIO: ${{ secrets.MUNICIPIO }}
         SECRET_COD_IBGE: ${{ secrets.COD_IBGE }}

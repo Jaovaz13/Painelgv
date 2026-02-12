@@ -109,44 +109,25 @@ def processar_serie_vaf(dados: Dict) -> List[Dict]:
     return serie
 
 
-def salvar_vaf_no_banco(session, dados: List[Dict]):
-    """Salva dados do VAF no banco de dados"""
-    for item in dados:
-        # Verificar se já existe para evitar violação de constraint
-        existing = session.query(Indicator).filter_by(
-            indicator_key="RECEITA_VAF",
-            source="SEFAZ_MG",
-            year=item["Ano"]
-        ).first()
+def salvar_vaf_no_banco(dados: List[Dict]):
+    """Salva dados do VAF no banco de dados usando upsert_indicators"""
+    if not dados:
+        return
         
-        if existing:
-            # Atualiza registro existente
-            existing.value = item["Valor"]
-            existing.collected_at = datetime.now()
-            session.commit()
-        else:
-            # Cria novo registro
-            indicator = Indicator(
-                indicator_key="RECEITA_VAF",
-                source="SEFAZ_MG",
-                year=item["Ano"],
-                value=item["Valor"],
-                municipality_code="3127701",
-                municipality_name="Governador Valadares",
-                uf="MG",
-                unit="R$",
-                collected_at=datetime.now()
-            )
-            session.add(indicator)
+    df = pd.DataFrame(dados)
+    df = df.rename(columns={"Ano": "year", "Valor": "value"})
     
-    logger.info(f"Salvos {len(dados)} registros de VAF")
+    upsert_indicators(
+        df,
+        indicator_key="RECEITA_VAF",
+        source="SEFAZ_MG",
+        category="Economia"
+    )
 
 
 def run_etl_vaf_sefaz():
     """Executa ETL completo para dados do VAF"""
     logger.info("Iniciando ETL para dados do VAF")
-    
-    session = get_session()
     
     try:
         # Extrair dados do VAF
@@ -155,7 +136,7 @@ def run_etl_vaf_sefaz():
         if dados_vaf:
             serie_vaf = processar_serie_vaf(dados_vaf)
             if serie_vaf:
-                salvar_vaf_no_banco(session, serie_vaf)
+                salvar_vaf_no_banco(serie_vaf)
             else:
                 logger.warning("Nenhum dado de VAF encontrado")
         else:
@@ -164,15 +145,11 @@ def run_etl_vaf_sefaz():
                 "Verifique: (1) API SEFAZ-MG, (2) arquivo data/raw/vaf_sefaz.csv"
             )
         
-        session.commit()
         logger.info("ETL para dados do VAF concluído com sucesso")
         
     except Exception as e:
-        session.rollback()
         logger.error(f"Erro no ETL do VAF: {e}")
         raise
-    finally:
-        session.close()
 
 
 if __name__ == "__main__":
