@@ -24,21 +24,46 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: Verificar configuração de secrets
+    - name: Configurar variáveis de ambiente
+      env:
+        SECRET_DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        SECRET_MUNICIPIO: ${{ secrets.MUNICIPIO }}
+        SECRET_COD_IBGE: ${{ secrets.COD_IBGE }}
+        SECRET_UF: ${{ secrets.UF }}
       run: |
-        echo "Verificando secrets configurados..."
-        if [ -z "${{ secrets.DATABASE_URL }}" ]; then
-          echo "⚠️ WARNING: DATABASE_URL não configurado"
+        echo "Configurando variáveis de ambiente..."
+        
+        # DATABASE_URL
+        if [ -n "$SECRET_DATABASE_URL" ]; then
+          echo "DATABASE_URL=$SECRET_DATABASE_URL" >> $GITHUB_ENV
+          echo "✓ DATABASE_URL configurado (secret)"
         else
-          echo "✓ DATABASE_URL configurado"
+          echo "DATABASE_URL=sqlite:///data/painel_gv.db" >> $GITHUB_ENV
+          echo "⚠️ DATABASE_URL usando valor padrão (SQLite local)"
+        fi
+        
+        # MUNICIPIO
+        if [ -n "$SECRET_MUNICIPIO" ]; then
+          echo "MUNICIPIO=$SECRET_MUNICIPIO" >> $GITHUB_ENV
+        else
+          echo "MUNICIPIO=Governador Valadares" >> $GITHUB_ENV
+        fi
+        
+        # COD_IBGE
+        if [ -n "$SECRET_COD_IBGE" ]; then
+          echo "COD_IBGE=$SECRET_COD_IBGE" >> $GITHUB_ENV
+        else
+          echo "COD_IBGE=3127701" >> $GITHUB_ENV
+        fi
+        
+        # UF
+        if [ -n "$SECRET_UF" ]; then
+          echo "UF=$SECRET_UF" >> $GITHUB_ENV
+        else
+          echo "UF=MG" >> $GITHUB_ENV
         fi
 
     - name: Executar Extração de Dados (ETL)
-      env:
-        DATABASE_URL: ${{ secrets.DATABASE_URL || 'sqlite:///data/painel_gv.db' }}
-        MUNICIPIO: ${{ secrets.MUNICIPIO || 'Governador Valadares' }}
-        COD_IBGE: ${{ secrets.COD_IBGE || '3127701' }}
-        UF: ${{ secrets.UF || 'MG' }}
       run: |
         # Roda o script mestre que integra todos os dados
         python etl/run_all.py
