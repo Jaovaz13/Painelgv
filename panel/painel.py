@@ -1,5 +1,6 @@
 """
 Painel interno Streamlit – Secretaria Municipal de Desenvolvimento, Ciência, Tecnologia e Inovação.
+# v1.0.3 - Restored and fixed sources
 Exibe todos os indicadores do banco em gráficos e permite gerar relatório em formato Word (.docx).
 """
 import logging
@@ -383,17 +384,20 @@ def render_economia(ano_inicio, ano_fim, modo):
 def render_trabalho_renda(ano_inicio, ano_fim, modo):
     st.subheader("Análise do Mercado de Trabalho e Renda")
     col1, col2, col3 = st.columns(3)
-    saldo_mes = cached_get_timeseries("SALDO_CAGED_MENSAL", "CAGED_MANUAL_MG")
-    salario = cached_get_timeseries("SALARIO_MEDIO_MG", "CAGED_MANUAL_MG")
+    saldo_mes = cached_get_timeseries("SALDO_CAGED_MENSAL")
+    salario = cached_get_timeseries("SALARIO_MEDIO_MG")
+    if salario.empty: salario = cached_get_timeseries("SALARIO_MEDIO_REAL")
     empresas = cached_get_timeseries("EMPRESAS_ATIVAS", "SEBRAE")
+    if empresas.empty: empresas = cached_get_timeseries("EMPRESOS_ATIVAS")
+    if empresas.empty: empresas = cached_get_timeseries("NUM_EMPRESAS")
 
     with col1:
         if not saldo_mes.empty:
-            render_indicator_header("SALDO_CAGED_MENSAL", "CAGED_MANUAL_MG", "Saldo Mensal (CAGED)")
+            render_indicator_header("SALDO_CAGED_MENSAL", saldo_mes.iloc[-1].get("source", "N/A"), "Saldo Mensal (CAGED)")
             st.metric("🌙 Saldo Mensal", fmt_br(saldo_mes.iloc[-1]["Valor"]), "Último Dado")
     with col2:
         if not salario.empty:
-            render_indicator_header("SALARIO_MEDIO_MG", "CAGED_MANUAL_MG", "Salário Médio (MG)")
+            render_indicator_header("SALARIO_MEDIO_MG", salario.iloc[-1].get("source", "N/A"), "Salário Médio")
             st.metric("💵 Salário Médio", fmt_br(salario.iloc[-1]["Valor"], currency=True, decimals=2), "Proxy Regional")
     with col3:
         if not empresas.empty:
@@ -512,7 +516,7 @@ def render_outras_paginas(pagina, ano_inicio, ano_fim, modo):
         st.info("Educação: indicadores exibidos exclusivamente a partir de dados reais no banco (origem INEP).")
         # Filtragem adicional se necessário, mas o catálogo já separa por fonte.
         # Aqui garantimos que apenas fontes reais sejam mostradas se houver fallback manual.
-        inds_to_show = [i for i in inds_to_show if i.get("source") in ["INEP", "INEP_RAW"]]
+        inds_to_show = [i for i in inds_to_show if str(i.get("source", "")).startswith("INEP")]
 
     if not inds_to_show:
         st.info("Nenhum indicador disponível nesta categoria.")

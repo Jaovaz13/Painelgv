@@ -129,6 +129,48 @@ CATALOGO_INDICADORES = {
         "api": False,
         "categoria": "Sustentabilidade",
         "unidade": "Score"
+    },
+    "TAXA_APROVACAO_FUNDAMENTAL": {
+        "nome": "Taxa de Aprovação (Fundamental)",
+        "fonte": "INEP",
+        "api": False,
+        "categoria": "Educação",
+        "unidade": "%"
+    },
+    "ESCOLAS_FUNDAMENTAL": {
+        "nome": "Número de Escolas (Fundamental)",
+        "fonte": "INEP",
+        "api": False,
+        "categoria": "Educação",
+        "unidade": "Escolas"
+    },
+    "IDEB_ANOS_INICIAIS": {
+        "nome": "IDEB (Anos Iniciais)",
+        "fonte": "INEP",
+        "api": False,
+        "categoria": "Educação",
+        "unidade": "Score"
+    },
+    "IDEB_ANOS_FINAIS": {
+        "nome": "IDEB (Anos Finais)",
+        "fonte": "INEP",
+        "api": False,
+        "categoria": "Educação",
+        "unidade": "Score"
+    },
+    "EMISSOES_GEE": {
+        "nome": "Emissões GEE (Total)",
+        "fonte": "SEEG",
+        "api": False,
+        "categoria": "Sustentabilidade",
+        "unidade": "tCO2e"
+    },
+    "SALDO_CAGED": {
+        "nome": "Saldo de Empregos (CAGED)",
+        "fonte": "CAGED",
+        "api": True,
+        "categoria": "Trabalho e Renda",
+        "unidade": "Vínculos"
     }
 }
 

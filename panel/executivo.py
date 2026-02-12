@@ -31,7 +31,7 @@ def create_executive_dashboard():
             st.metric("📈 Status Geral", f"{status_emoji} {health_status['status'].title()}")
         
         with col2:
-            apis_healthy = len([s for s in health_status['components']['apis']['sources'] 
+            apis_healthy = len([s for s in health_status['components']['apis']['sources'].values() 
                               if s['status'] == 'healthy'])
             total_apis = len(health_status['components']['apis']['sources'])
             st.metric("🔄 APIs Saudáveis", f"{apis_healthy}/{total_apis}", 

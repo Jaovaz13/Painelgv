@@ -147,7 +147,8 @@ class HealthChecker:
             'connection_time': None,
             'last_query': None,
             'table_count': 0,
-            'error_count': 0
+            'error_count': 0,
+            'issues': []
         }
         
         try:
@@ -157,8 +158,7 @@ class HealthChecker:
             start_time = time.time()
             with get_session() as session:
                 # Contar tabelas
-                from sqlalchemy import text
-                result = session.execute(text("SELECT COUNT(*) FROM sqlite_master WHERE type='table'")).fetchone()
+                result = session.execute(text("SELECT COUNT(DISTINCT indicator_key) FROM indicators")).fetchone()
                 status['table_count'] = result[0] if result else 0
                 
                 # Testar query simples
@@ -189,7 +189,8 @@ class HealthChecker:
             'message': '',
             'last_run': None,
             'failure_rate': 0.0,
-            'processed_indicators': 0
+            'processed_indicators': 0,
+            'issues': []
         }
         
         try:
@@ -240,7 +241,8 @@ class HealthChecker:
             'message': '',
             'hit_rate': metrics['cache_hit_rate'],
             'total_requests': metrics['cache_hits'] + metrics['cache_misses'],
-            'cache_size': len(list(self.fallback_manager.cache_dir.glob("*.json")))
+            'cache_size': len(list(self.fallback_manager.cache_dir.glob("*.json"))),
+            'issues': []
         }
         
         if status['hit_rate'] < 0.7:  # 70% mínimo

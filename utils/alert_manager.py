@@ -40,7 +40,7 @@ class AlertManager:
             'smtp_port': 587,
             'smtp_user': '',
             'smtp_password': '',
-            'from_email': f'alertas@{MUNICIPIO.lower().replace(' ', '')}.mg.gov.br',
+            'from_email': f"alertas@{MUNICIPIO.lower().replace(' ', '')}.mg.gov.br",
             'to_emails': []
         }
         

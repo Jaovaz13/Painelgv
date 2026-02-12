@@ -1,4 +1,1 @@
-"""Painel interno Streamlit."""
-from .painel import main
-
-__all__ = ["main"]
+# Created with UTF-8

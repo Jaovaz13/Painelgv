@@ -104,8 +104,7 @@ def gerar_relatorio_docx(
         source = ind["source"]
         unit_catalog = (CATALOGO_INDICADORES.get(key) or {}).get("unidade", "")  # fallback amigável
         
-        # EDUCAÇÃO: aceitar apenas séries oriundas de data/raw (INEP_RAW)
-        if key in education_keys and source != "INEP_RAW":
+        if key in education_keys and not str(source).startswith("INEP"):
             continue
 
         if source != current_source:

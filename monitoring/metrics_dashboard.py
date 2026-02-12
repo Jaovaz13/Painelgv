@@ -55,7 +55,7 @@ def create_metrics_dashboard():
     with col1:
         st.subheader("🔄 APIs Externas")
         
-        api_health = health_checker['components']['apis']
+        api_health = health_status['components']['apis']
         
         # Criar gráfico de status das APIs
         api_data = []
@@ -116,7 +116,7 @@ def create_metrics_dashboard():
     # ETL Status
     st.subheader("🔄 Status dos Processos ETL")
     
-    etl_health = health_checker['components']['etl']
+    etl_health = health_status['components']['etl']
     
     col_etl1, col_etl2, col_etl3 = st.columns(3)
     
@@ -137,7 +137,7 @@ def create_metrics_dashboard():
     # Database Status
     st.subheader("🗄️ Status do Banco de Dados")
     
-    db_health = health_checker['components']['database']
+    db_health = health_status['components']['database']
     
     col_db1, col_db2, col_db3 = st.columns(3)
     
