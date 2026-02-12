@@ -24,12 +24,21 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
+    - name: Verificar configuração de secrets
+      run: |
+        echo "Verificando secrets configurados..."
+        if [ -z "${{ secrets.DATABASE_URL }}" ]; then
+          echo "⚠️ WARNING: DATABASE_URL não configurado"
+        else
+          echo "✓ DATABASE_URL configurado"
+        fi
+
     - name: Executar Extração de Dados (ETL)
       env:
-        DATABASE_URL: "${{ secrets.DATABASE_URL }}"
-        MUNICIPIO: "${{ secrets.MUNICIPIO }}"
-        COD_IBGE: "${{ secrets.COD_IBGE }}"
-        UF: "${{ secrets.UF }}"
+        DATABASE_URL: ${{ secrets.DATABASE_URL || 'sqlite:///data/painel_gv.db' }}
+        MUNICIPIO: ${{ secrets.MUNICIPIO || 'Governador Valadares' }}
+        COD_IBGE: ${{ secrets.COD_IBGE || '3127701' }}
+        UF: ${{ secrets.UF || 'MG' }}
       run: |
         # Roda o script mestre que integra todos os dados
         python etl/run_all.py
