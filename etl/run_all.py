@@ -28,6 +28,7 @@ def run_all() -> Dict[str, Any]:
     import etl.saude as saude
     import etl.sustentabilidade_idsc as sustentabilidade_idsc
     import etl.pib_ibge as pib_ibge
+    import etl.pib_per_capita_ibge as pib_per_capita_ibge
     import etl.vaf_sefaz as vaf_sefaz
     import etl.icms_sefaz as icms_sefaz
     import etl.empresas_rais as empresas_rais
@@ -42,6 +43,7 @@ def run_all() -> Dict[str, Any]:
         {"mod": saude, "func": saude.run, "name": "Saúde (Mortalidade)"},
         {"mod": sustentabilidade_idsc, "func": sustentabilidade_idsc.run, "name": "IDSC (Sustentabilidade)"},
         {"mod": pib_ibge, "func": pib_ibge.run_etl_pib_ibge, "name": "PIB IBGE"},
+        {"mod": pib_per_capita_ibge, "func": pib_per_capita_ibge.run, "name": "PIB per Capita IBGE"},
         {"mod": vaf_sefaz, "func": vaf_sefaz.run_etl_vaf_sefaz, "name": "VAF SEFAZ"},
         {"mod": icms_sefaz, "func": icms_sefaz.run_etl_icms_sefaz, "name": "ICMS SEFAZ"},
         {"mod": empresas_rais, "func": empresas_rais.run_etl_empresas_rais, "name": "Empresas/Vínculos RAIS"},
