@@ -149,7 +149,12 @@ def estimar_pib(anos_frente: int = 3, method: str = "auto") -> pd.DataFrame:
     df_base = pd.DataFrame()
     
     # Tenta Prophet se disponível e solicitado
-    if (method == "auto" or method == "prophet") and HAS_PROPHET:
+    # Prioridade para Holt-Winters (Mais leve e estável para deploy)
+    if method == "auto" or method == "hw":
+        df_base = estimar_pib_hw(anos_frente)
+
+    # Se HW falhar ou se usuário forçar Prophet
+    if df_base.empty and method == "prophet" and HAS_PROPHET:
         df_base = estimar_pib_prophet(anos_frente)
     
     # Fallback para Holt-Winters se Prophet falhar ou não estiver disponível

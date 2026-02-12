@@ -144,7 +144,23 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# Importar componentes visuais premium
+try:
+    from utils.visual_components import metric_card, apply_institutional_layout
+except ImportError:
+    # Fallback simples se o arquivo não existir (segurança)
+    def metric_card(label, value, sublabel="", border_color="#2563eb"):
+        st.metric(label, value, sublabel)
+    
+    def apply_institutional_layout(fig, title="", source=""):
+        fig.update_layout(title=title)
+        return fig
+
 def card_plotly(label, value, delta=None, unit="", fonte=""):
+    """
+    Mantido para retrocompatibilidade onde ainda for usado, 
+    mas idealmente deve ser substituído por metric_card nas KPIs.
+    """
     fig = go.Figure(go.Indicator(
         mode="number+delta" if delta is not None else "number",
         value=value,
@@ -242,64 +258,81 @@ def render_visao_geral(ano_inicio, ano_fim, modo):
     with col1:
         if not pop_det.empty:
             ult = pop_det.sort_values("Ano").iloc[-1]
-            render_indicator_header("POPULACAO", "IBGE", "População")
-            st.plotly_chart(card_plotly("População", ult['Valor'], unit="", fonte="IBGE"), use_container_width=True)
-        else: st.metric("População", "N/D")
+            metric_card(
+                "População", 
+                fmt_br(ult['Valor']), 
+                f"Referência: {int(ult['Ano'])}",
+                border_color="#1e3a8a"
+            )
+        else: metric_card("População", "N/D", "Sem dados")
 
     pib = cached_get_timeseries("PIB_TOTAL", "IBGE")
     with col_pib:
         if not pib.empty:
             ult = pib.sort_values("Ano").iloc[-1]
             pib_bilhoes = ult['Valor'] / 1_000_000
-            render_indicator_header("PIB_TOTAL", "IBGE", "PIB Total")
-            st.plotly_chart(card_plotly("PIB Total", pib_bilhoes, unit="bi", fonte="IBGE"), use_container_width=True)
-        else: st.metric("PIB Total", "N/D")
+            metric_card(
+                "PIB Total", 
+                f"R$ {fmt_br(pib_bilhoes, decimals=2)} bi", 
+                f"Referência: {int(ult['Ano'])}", 
+                border_color="#3b82f6"
+            )
+        else: metric_card("PIB Total", "N/D", "Sem dados")
 
     with col_pc:
         df_pc = get_pib_per_capita_df()
         if not df_pc.empty:
-            render_indicator_header("PIB_PER_CAPITA", "IBGE", "PIB per Capita")
-            st.plotly_chart(card_plotly("PIB per Capita", df_pc.iloc[-1]['Valor'], unit="", fonte="IBGE (Calc)"), use_container_width=True)
-        else: st.metric("PIB per Capita", "N/D")
+            val = df_pc.iloc[-1]['Valor']
+            metric_card(
+                "PIB Per Capita", 
+                fmt_br(val, currency=True), 
+                "IBGE (Calculado)",
+                border_color="#2563eb"
+            )
+        else: metric_card("PIB Per Capita", "N/D", "Sem dados")
 
     with col_gr:
         df_gr = get_pib_growth_df()
         if not df_gr.empty:
-            render_indicator_header("PIB_CRESCIMENTO", "IBGE", "Crescimento PIB")
-            st.plotly_chart(card_plotly("Crescimento PIB", df_gr.iloc[-1]['Valor'], unit="%", fonte="IBGE (Calc)"), use_container_width=True)
-        else: st.metric("Crescimento", "N/D")
+            val = df_gr.iloc[-1]['Valor']
+            metric_card(
+                "Crescimento PIB", 
+                f"{fmt_br(val, decimals=2)}%", 
+                "Variação Anual",
+                border_color="#10b981" if val >= 0 else "#ef4444"
+            )
+        else: metric_card("Crescimento PIB", "N/D", "Sem dados")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
     col_idhm, col_gini, col_vaf, col_gee = st.columns(4)
     idhm = cached_get_timeseries("IDHM", "ATLAS_BRASIL")
     with col_idhm:
-        render_indicator_header("IDHM", "ATLAS_BRASIL", "IDH-M")
         if not idhm.empty:
-            st.plotly_chart(card_plotly("IDH-M", idhm.sort_values("Ano").iloc[-1]['Valor'], unit="", fonte="Atlas Brasil"), use_container_width=True)
-        else: st.metric("IDH-M", "N/D")
+            val = idhm.sort_values("Ano").iloc[-1]['Valor']
+            metric_card("IDH-M", fmt_br(val, decimals=3), "Alto Desenvolvimento")
+        else: metric_card("IDH-M", "N/D", "Sem dados")
     
     gini = cached_get_timeseries("GINI", "IBGE")
     with col_gini:
-        render_indicator_header("GINI", "IBGE", "Índice GINI")
         if not gini.empty:
-            st.plotly_chart(card_plotly("Índice GINI", gini.sort_values("Ano").iloc[-1]['Valor'], unit="", fonte="IBGE"), use_container_width=True)
-        else: st.metric("Índice GINI", "N/D")
+            val = gini.sort_values("Ano").iloc[-1]['Valor']
+            metric_card("Índice GINI", fmt_br(val, decimals=4), "Desigualdade")
+        else: metric_card("GINI", "N/D", "Sem dados")
     
     vaf = cached_get_timeseries("RECEITA_VAF", "SEFAZ_MG")
     with col_vaf:
-        render_indicator_header("RECEITA_VAF", "SEFAZ_MG", "Valor Adicionado (VAF)")
         if not vaf.empty:
             val = vaf.iloc[-1]["Valor"] / 1_000_000
-            st.plotly_chart(card_plotly("VAF", val, unit="M", fonte="SEFAZ-MG"), use_container_width=True)
-        else: st.metric("VAF", "N/D")
+            metric_card("VAF", f"R$ {fmt_br(val, decimals=1)} M", "Valor Adicionado")
+        else: metric_card("VAF", "N/D", "Sem dados")
         
     gee = cached_get_timeseries("EMISSOES_GEE", "SEEG")
     with col_gee:
-        render_indicator_header("EMISSOES_GEE", "SEEG", "Emissões GEE")
         if not gee.empty:
-            st.plotly_chart(card_plotly("GEE", gee.iloc[-1]["Valor"], unit="tCO2e", fonte="SEEG"), use_container_width=True)
-        else: st.metric("GEE", "N/D")
+            val = gee.iloc[-1]["Valor"]
+            metric_card("Emissões GEE", f"{fmt_br(val, decimals=0)} t", "Toneladas CO2e", border_color="#15803d")
+        else: metric_card("GEE", "N/D", "Sem dados")
 
 def render_economia(ano_inicio, ano_fim, modo):
     st.title("Estrutura Produtiva e Dinâmica Econômica")
@@ -319,20 +352,22 @@ def render_economia(ano_inicio, ano_fim, modo):
             if not df_pib.empty:
                 ult = df_pib.sort_values("Ano").iloc[-1]
                 val = ult['Valor'] / 1_000_000
-                st.plotly_chart(card_plotly("PIB Total", val, unit="bi", fonte="IBGE"), use_container_width=True)
-            else: st.metric("PIB Total", "N/D")
+                metric_card("PIB Total", f"R$ {fmt_br(val, decimals=1)} bi", f"Ano: {int(ult['Ano'])}", border_color="#3b82f6")
+            else: metric_card("PIB Total", "N/D", "Sem dados")
         
         with col_e2:
             df_pc = get_pib_per_capita_df()
             if not df_pc.empty:
-                st.plotly_chart(card_plotly("PIB per Capita", df_pc.iloc[-1]['Valor'], unit="", fonte="IBGE (Calc)"), use_container_width=True)
-            else: st.metric("PIB per Capita", "N/D")
+                val = df_pc.iloc[-1]['Valor']
+                metric_card("PIB per Capita", fmt_br(val, currency=True), "Riqueza/Hab", border_color="#2563eb")
+            else: metric_card("PIB per Capita", "N/D", "Sem dados")
         
         with col_e3:
             df_gr = get_pib_growth_df()
             if not df_gr.empty:
-                st.plotly_chart(card_plotly("Crescimento PIB", df_gr.iloc[-1]['Valor'], unit="%", fonte="IBGE (Calc)"), use_container_width=True)
-            else: st.metric("Crescimento PIB", "N/D")
+                val = df_gr.iloc[-1]['Valor']
+                metric_card("Crescimento PIB", f"{fmt_br(val, decimals=2)}%", "Variação Anual", border_color="#10b981" if val >= 0 else "#ef4444")
+            else: metric_card("Crescimento PIB", "N/D", "Sem dados")
 
     with tab2:
         st.subheader("Composição do PIB e Valor Adicionado")
@@ -353,6 +388,7 @@ def render_economia(ano_inicio, ano_fim, modo):
             df_pie_pd = pd.DataFrame(df_pie)
             st.write(f"Dados referentes ao ano de {int(df_pie_pd['Ano'].iloc[0])}")
             fig_pie = px.pie(df_pie_pd, values='Valor', names='Setor', title="Participação Setorial no PIB")
+            fig_pie = apply_institutional_layout(fig_pie, title="Participação Setorial no PIB", source="IBGE - Contas Regionais")
             st.plotly_chart(fig_pie, use_container_width=True)
         else: st.info("Dados setoriais não disponíveis.")
 
@@ -361,25 +397,32 @@ def render_economia(ano_inicio, ano_fim, modo):
         if not df_pib.empty:
             df_pib_f = df_pib[(df_pib["Ano"] >= ano_inicio) & (df_pib["Ano"] <= ano_fim)]
             fig_evol = px.line(df_pib_f, x="Ano", y="Valor", markers=True, title="Evolução do PIB Nominal")
+            fig_evol = apply_institutional_layout(fig_evol, title="Evolução do PIB Nominal (Série Histórica)", source="IBGE")
             st.plotly_chart(fig_evol, use_container_width=True)
 
     with tab4:
         st.subheader("Indicadores de Capacidade Fiscal")
-        col_f1, col_f2 = st.columns(2)
+        col_f1, col_f2, col_f3 = st.columns(3)
         vaf = cached_get_timeseries("RECEITA_VAF", "SEFAZ_MG")
         with col_f1:
             if not vaf.empty:
                 val = vaf.iloc[-1]["Valor"] / 1_000_000
-                render_indicator_header("RECEITA_VAF", "SEFAZ_MG", "VAF")
-                st.metric("VAF (M)", f"R$ {fmt_br(val, decimals=1)}M", "Valor Adicionado")
-            else: st.metric("VAF", "N/D")
+                metric_card("Valor Adic. Fiscal", f"R$ {fmt_br(val, decimals=1)} M", f"Ano: {int(vaf.iloc[-1]['Ano'])}", border_color="#f59e0b")
+            else: metric_card("VAF", "N/D", "Sem dados")
+        
         icms = cached_get_timeseries("RECEITA_ICMS", "SEFAZ_MG")
         with col_f2:
             if not icms.empty:
                 val = icms.iloc[-1]["Valor"] / 1_000_000
-                render_indicator_header("RECEITA_ICMS", "SEFAZ_MG", "ICMS")
-                st.metric("Cota-Parte ICMS (M)", f"R$ {fmt_br(val, decimals=1)}M", "Anual")
-            else: st.metric("ICMS", "N/D")
+                metric_card("Cota-Parte ICMS", f"R$ {fmt_br(val, decimals=1)} M", "Repasse Estadual")
+            else: metric_card("ICMS", "N/D", "Sem dados")
+            
+        massa = cached_get_timeseries("MASSA_SALARIAL_ESTIMADA", "CAGED_ESTIMADO")
+        with col_f3:
+            if not massa.empty:
+                val = massa.iloc[-1]["Valor"] / 1_000_000
+                metric_card("Massa Salarial (Est)", f"R$ {fmt_br(val, decimals=1)} M", "Impacto Econômico", border_color="#8b5cf6")
+            else: metric_card("Massa Salarial", "N/D", "Sem dados")
 
 def render_trabalho_renda(ano_inicio, ano_fim, modo):
     st.subheader("Análise do Mercado de Trabalho e Renda")
@@ -393,16 +436,19 @@ def render_trabalho_renda(ano_inicio, ano_fim, modo):
 
     with col1:
         if not saldo_mes.empty:
-            render_indicator_header("SALDO_CAGED_MENSAL", saldo_mes.iloc[-1].get("source", "N/A"), "Saldo Mensal (CAGED)")
-            st.metric("🌙 Saldo Mensal", fmt_br(saldo_mes.iloc[-1]["Valor"]), "Último Dado")
+            val = saldo_mes.iloc[-1]["Valor"]
+            metric_card("Saldo Mensal (CAGED)", fmt_br(val), "Vagas C.L.T.", border_color="#10b981" if val >= 0 else "#ef4444")
+        else: metric_card("Saldo Mensal", "N/D", "Sem dados")
+    
     with col2:
         if not salario.empty:
-            render_indicator_header("SALARIO_MEDIO_MG", salario.iloc[-1].get("source", "N/A"), "Salário Médio")
-            st.metric("💵 Salário Médio", fmt_br(salario.iloc[-1]["Valor"], currency=True, decimals=2), "Proxy Regional")
+            metric_card("Salário Médio", fmt_br(salario.iloc[-1]["Valor"], currency=True), "Referência Regional")
+        else: metric_card("Salário Médio", "N/D", "Sem dados")
+    
     with col3:
         if not empresas.empty:
-            render_indicator_header("EMPRESAS_ATIVAS", "SEBRAE", "Empresas Ativas")
-            st.metric("🏢 Empresas", fmt_br(empresas.iloc[-1]["Valor"]), f"{int(empresas.iloc[-1]['Ano'])}")
+            metric_card("Empresas Ativas", fmt_br(empresas.iloc[-1]["Valor"]), "Total Cadastrado")
+        else: metric_card("Empresas", "N/D", "Sem dados")
 
     st.divider()
     col_caged, col_rais = st.columns(2)
@@ -411,14 +457,16 @@ def render_trabalho_renda(ano_inicio, ano_fim, modo):
         if jobs.empty: jobs = cached_get_timeseries("EMPREGOS_CAGED", "CAGED")
         if not jobs.empty:
             st.subheader("📈 Estoque de Empregos (CAGED)")
-            fig = px.area(jobs, x="Ano", y="Valor")
+            fig = px.area(jobs, x="Ano", y="Valor", title="Evolução do Estoque de Empregos")
+            fig = apply_institutional_layout(fig, title="Estoque de Empregos Formais", source="Novo CAGED")
             st.plotly_chart(fig, use_container_width=True)
     
     with col_rais:
         jobs_rais = cached_get_timeseries("EMPREGOS_RAIS", "RAIS")
         if not jobs_rais.empty:
             st.subheader("👔 Vínculos Formais (RAIS)")
-            fig = px.line(jobs_rais, x="Ano", y="Valor", markers=True)
+            fig = px.line(jobs_rais, x="Ano", y="Valor", markers=True, title="Histórico RAIS")
+            fig = apply_institutional_layout(fig, title="Vínculos Empregatícios (RAIS)", source="RAIS/MTE")
             st.plotly_chart(fig, use_container_width=True)
 
 def render_pib_estimado(ano_inicio, ano_fim):
@@ -453,15 +501,22 @@ def render_sustentabilidade(ano_inicio, ano_fim, modo):
     with col1:
         idsc = cached_get_timeseries("IDSC_GERAL", "IDSC")
         if not idsc.empty:
-            st.subheader("🌱 IDSC (Score Geral)")
-            st.metric("Score", f"{idsc.iloc[-1]['Valor']:.2f}")
-            st.plotly_chart(px.line(idsc, x="Ano", y="Valor", markers=True), use_container_width=True)
+            val = idsc.iloc[-1]["Valor"]
+            metric_card("IDSC (Score Geral)", f"{val:.2f}", "Índice de Desenv. Sustentável", border_color="#15803d")
+            fig = px.line(idsc, x="Ano", y="Valor", markers=True)
+            fig = apply_institutional_layout(fig, title="Evolução do IDSC", source="Instituto Cidades Sustentáveis")
+            st.plotly_chart(fig, use_container_width=True)
+        else: st.info("Dados do IDSC indisponíveis.")
+
     with col2:
         emissoes = cached_get_timeseries("EMISSOES_GEE", "SEEG")
         if not emissoes.empty:
-            st.subheader("🏭 Emissões de GEE")
-            st.metric("Total (tCO2e)", f"{emissoes.iloc[-1]['Valor']:,.0f}")
-            st.plotly_chart(px.bar(emissoes, x="Ano", y="Valor"), use_container_width=True)
+            val = emissoes.iloc[-1]["Valor"]
+            metric_card("Emissões Totais", f"{fmt_br(val, decimals=0)} t", "Toneladas CO2e", border_color="#ca8a04")
+            fig = px.bar(emissoes, x="Ano", y="Valor")
+            fig = apply_institutional_layout(fig, title="Emissões de Gases de Efeito Estufa", source="SEEG")
+            st.plotly_chart(fig, use_container_width=True)
+        else: st.info("Dados do SEEG indisponíveis.")
 
 def render_metodologia():
     st.header("📖 Nota Metodológica e Fontes de Dados")
@@ -529,10 +584,14 @@ def render_outras_paginas(pagina, ano_inicio, ano_fim, modo):
         if df.empty: continue
         
         meta = lazy_get_indicator_info(item["indicator_key"])
-        st.subheader(meta.get("nome", item["indicator_key"]))
-        st.caption(f"Fonte: {item['source']} | Unidade: {item.get('unit', '')}")
+        title = meta.get("nome", item["indicator_key"])
+        unit = item.get('unit', '')
         
-        st.plotly_chart(px.line(df, x="Ano", y="Valor", markers=True), use_container_width=True)
+        st.subheader(title)
+        
+        fig = px.line(df, x="Ano", y="Valor", markers=True)
+        fig = apply_institutional_layout(fig, title=title, source=f"{item['source']} ({unit})")
+        st.plotly_chart(fig, use_container_width=True)
         
         if modo == "Técnico":
             with st.expander("📊 Detalhes Técnicos"):

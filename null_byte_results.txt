@@ -1,1 +1,0 @@
-No .py files with null bytes found.
