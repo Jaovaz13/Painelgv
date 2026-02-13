@@ -1,6 +1,11 @@
 import pandas as pd
 import logging
 import os
+import sys
+
+# Permitir importações da raiz
+sys.path.insert(0, os.getcwd())
+
 from etl.utils import padronizar
 from config import MUNICIPIO, UF, DATA_DIR
 from database import upsert_indicators
@@ -25,15 +30,28 @@ def empresas_ativas(path_csv, indicador: str, unidade: str):
             "Município": "municipio",
             "Municipio": "municipio",
             "Municipality": "municipio",
+            "NM_MUNICIPIO": "municipio",
             "Ano": "ano",
             "Year": "ano",
             "Empresas": "valor",
+            "Empresas ativas": "valor",
             "Workers": "valor",
             "Empregados total": "valor",
             "Number workers": "valor",
             "Estabelecimentos": "valor",
+            "Establishments": "valor",
         }
-        df = df.rename(columns={k: v for k, v in cols_map.items() if k in df.columns})
+
+        # Renomeamento cuidadoso para evitar colunas duplicadas
+        for k, v in cols_map.items():
+            if k in df.columns and v not in df.columns:
+                df = df.rename(columns={k: v})
+            elif k in df.columns and v in df.columns:
+                # Se já existe a coluna destino, apenas remove a coluna de origem redundante
+                df = df.drop(columns=[k])
+        
+        # Remover colunas duplicadas se houver (caso existissem de antes)
+        df = df.loc[:, ~df.columns.duplicated()]
 
         if "municipio" in df.columns:
             # Filtrar por GV (ID 3127701 ou nome)
@@ -102,7 +120,7 @@ def run():
     
     if all_dfs:
         logger.info(f"ETL Negócios Sebrae concluído com {len(all_dfs)} arquivos.")
-        return pd.concat(all_dfs)
+        return pd.concat(all_dfs, ignore_index=True)
     return pd.DataFrame()
 
 if __name__ == "__main__":

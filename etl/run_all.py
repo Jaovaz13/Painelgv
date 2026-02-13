@@ -1,8 +1,13 @@
 import pandas as pd
 import logging
 import time
+import sys
+import os
 from datetime import datetime
 from typing import Dict, List, Any
+
+# Permitir importações da raiz (com prioridade)
+sys.path.insert(0, os.getcwd())
 
 # Configuração de logging centralizada
 logging.basicConfig(
@@ -19,7 +24,7 @@ def run_all() -> Dict[str, Any]:
     Retorna um relatório de execução dos módulos.
     """
     start_time = time.time()
-    logger.info("🚀 Iniciando Ciclo Completo de Automação de Dados (ETL)")
+    logger.info("Iniciando Ciclo Completo de Automação de Dados (ETL)")
     
     # Importações Lazy para evitar carregamento desnecessário se não for rodar
     import etl.demograficos as demograficos
@@ -79,14 +84,14 @@ def run_all() -> Dict[str, Any]:
         report["details"].append(mod_status)
         
     report["execution_time_seconds"] = round(time.time() - start_time, 2)
-    logger.info(f"🏁 Ciclo Finalizado. Sucessos: {report['success_count']}, Falhas: {report['failure_count']}")
+    logger.info(f"Ciclo Finalizado. Sucessos: {report['success_count']}, Falhas: {report['failure_count']}")
     
     return report
 
 if __name__ == "__main__":
     rep = run_all()
-    print("\n--- RELATÓRIO DE EXECUÇÃO ETL ---")
-    print(f"Duração Total: {rep['execution_time_seconds']}s")
+    print("\n--- RELATORIO DE EXECUCAO ETL ---")
+    print(f"Duracao Total: {rep['execution_time_seconds']}s")
     for d in rep["details"]:
-        status_icon = "✅" if d["status"] == "success" else "❌"
+        status_icon = "[OK]" if d["status"] == "success" else "[ERR]"
         print(f"{status_icon} {d['name']}: {d['status']} ({d['duration']}s)")

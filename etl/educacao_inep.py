@@ -85,27 +85,46 @@ def run():
     raw_dir = DATA_DIR / "raw"
     
     # Busca recursiva por arquivos INEP/Sinopse/Matriculas
-    all_files = []
+    files_by_year = {}
+    import re
+    
     for root, dirs, files in os.walk(raw_dir):
         for f in files:
-            if any(p in f.lower() for p in ["inep", "matriculas", "sinopse"]) and f.split('.')[-1] in ['csv', 'xlsx', 'xls', 'ods']:
-                all_files.append(os.path.join(root, f))
+            if any(p in f.lower() for p in ["inep", "matriculas", "sinopse"]):
+                ext = f.split('.')[-1].lower()
+                if ext in ['csv', 'xlsx', 'xls', 'ods']:
+                    # Tentar extrair ano do nome do arquivo
+                    match = re.search(r"20\d{2}", f)
+                    year = match.group() if match else "unknown"
+                    
+                    path = os.path.join(root, f)
+                    
+                    if year not in files_by_year:
+                        files_by_year[year] = []
+                    files_by_year[year].append((ext, path))
     
-    if not all_files:
+    # Selecionar o melhor arquivo para cada ano (preferência: xlsx > xls > csv > ods)
+    priority = {'xlsx': 0, 'xls': 1, 'csv': 2, 'ods': 3}
+    final_files = []
+    for year, files_list in files_by_year.items():
+        # Ordena por prioridade de extensão e pega o primeiro
+        best_file = sorted(files_list, key=lambda x: priority.get(x[0], 99))[0][1]
+        final_files.append(best_file)
+
+    if not final_files:
         logger.warning("Nenhum arquivo INEP encontrado em data/raw")
         return pd.DataFrame()
 
     all_dfs = []
-    for path_file in all_files:
+    for path_file in final_files:
         df = matriculas(path_file)
         if not df.empty:
             all_dfs.append(df)
-            # IMPORTANTE: dados oriundos exclusivamente de arquivos reais em data/raw
             upsert_indicators(df, indicator_key="MATRICULAS_TOTAL", source="INEP_RAW", category="Educação")
     
     if all_dfs:
         logger.info(f"ETL Educação INEP concluído com {len(all_dfs)} arquivos.")
-        return pd.concat(all_dfs)
+        return pd.concat(all_dfs, ignore_index=True)
     return pd.DataFrame()
 
 if __name__ == "__main__":

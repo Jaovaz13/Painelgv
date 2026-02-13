@@ -22,33 +22,56 @@ def idsc(path_file):
         if path_file.endswith(".xlsx") or path_file.endswith(".xls"):
             xl = pd.ExcelFile(path_file)
             sheet_name = xl.sheet_names[0]
-            # Tenta encontrar a aba de dados (geralmente a segunda ou com nome IDSC-BR)
-            for s in xl.sheet_names:
-                if "IDSC-BR" in s:
-                    sheet_name = s
-                    break
+            # Prioridade de abas: Séries Temporais > Todos os Dados > IDSC-BR
+            prioridades = ["Séries Temporais", "Series Temporais", "Todos os Dados", "IDSC-BR"]
+            for p in prioridades:
+                for s in xl.sheet_names:
+                    if p.lower() in s.lower():
+                        sheet_name = s
+                        break
+                else: continue
+                break
+            
+            logger.info(f"Lendo aba: {sheet_name}")
             df = pd.read_excel(path_file, sheet_name=sheet_name)
         else:
-            df = pd.read_csv(path_file, sep=None, engine='python')
+            df = pd.read_csv(path_file, sep=None, engine='python', encoding='utf-8')
             
         cols_map = {
             "Município": "municipio",
             "Municipio": "municipio",
             "Cidade": "municipio",
+            "NM_Municipio": "municipio",
+            "COD_MUN": "cod_ibge",
             "Ano": "ano",
             "Year": "ano",
-            "Score Geral": "valor",
-            "Pontuação Geral": "valor",
-            "IDSC-BR": "valor"
+            "ano": "ano"
         }
         df = df.rename(columns={k: v for k, v in cols_map.items() if k in df.columns})
+        
+        # Procurar coluna de valor (Score Geral, Pontuação Geral, IDSC-BR...)
+        if "valor" not in df.columns:
+            import re
+            score_patterns = [r"Score Geral", r"Pontuação Geral", r"IDSC-BR.*", r"Indice.*"]
+            for col in df.columns:
+                 for pattern in score_patterns:
+                     if re.match(pattern, col, re.IGNORECASE):
+                         df = df.rename(columns={col: "valor"})
+                         break
+                 if "valor" in df.columns: break
         
         # Se não tem coluna de ano, usa o do arquivo
         if "ano" not in df.columns and file_year:
             df["ano"] = file_year
             
-        if "municipio" in df.columns:
+        # Filtrar GV
+        # Pode estar em cod_ibge, municipio ou NM_Municipio
+        if "cod_ibge" in df.columns:
+            df = df[df["cod_ibge"].astype(str).str.contains("3127701")]
+        elif "municipio" in df.columns:
             df = df[df["municipio"].astype(str).str.contains(MUNICIPIO, case=False, na=False)]
+        elif "NM_Municipio" in df.columns:
+            df = df[df["NM_Municipio"].astype(str).str.contains(MUNICIPIO, case=False, na=False)]
             
         if "ano" not in df.columns or "valor" not in df.columns:
             logger.error(f"Colunas obrigatórias não encontradas no IDSC ({path_file}). Colunas: {df.columns}")

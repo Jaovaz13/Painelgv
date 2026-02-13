@@ -32,15 +32,16 @@ def populacao_por_idade_sexo():
             return pd.DataFrame()
             
         df = pd.DataFrame(data[1:])
-        # D2C: Ano, V: Valor, D3C: Variável
-        df = df.rename(columns={"V": "valor", "D2C": "ano"})
+        # Tabela 6579: D1C é Ano, V é Valor
+        df = df.rename(columns={"V": "valor", "D1C": "ano"})
         df["valor"] = pd.to_numeric(df["valor"], errors="coerce")
         df["ano"] = pd.to_numeric(df["ano"], errors="coerce")
         df["mes"] = 0
         
         # Filtrar apenas o que tem valor e ano válido (ex: ano > 1900)
         df = df[df["ano"] > 1900]
-        df = df[["valor", "ano", "mes"]].dropna()
+        df["unit"] = "Habitantes"
+        df = df[["valor", "ano", "mes", "unit"]].dropna()
         
         return padronizar(
             df,
