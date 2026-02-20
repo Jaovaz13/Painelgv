@@ -8,6 +8,7 @@ import sys
 import os
 from pathlib import Path
 from datetime import datetime
+from typing import Optional
 
 # Garantir que o diretório raiz está no sys.path
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -107,7 +108,7 @@ def lazy_run_rais_caged_extended():
 
 # ─── Cache de consultas ao banco (reduz latência e créditos Neon) ────────────
 @st.cache_data(ttl=3600, show_spinner="Buscando dados...")
-def cached_get_timeseries(indicator_key: str, source: str | None = None) -> pd.DataFrame:
+def cached_get_timeseries(indicator_key: str, source: Optional[str] = None) -> pd.DataFrame:
     """Consulta com cache de 1h para reduzir requisições ao banco Neon."""
     return get_timeseries(indicator_key, source)
 
@@ -251,7 +252,7 @@ def get_secao_by_key(key: str) -> str:
 
 # --- PAGE RENDERING FUNCTIONS ---
 
-def render_visao_geral(ano_inicio, ano_fim, modo):
+def render_visao_geral(ano_inicio: int, ano_fim: int) -> None:
     st.subheader("Destaques do Município")
     st.markdown(f"""
     <div style="background: linear-gradient(90deg, #1e3a8a 0%, #3b82f6 100%); padding: 30px; border-radius: 12px; color: white; margin-bottom: 30px;">
@@ -353,7 +354,7 @@ def render_visao_geral(ano_inicio, ano_fim, modo):
         },
     ])
 
-def render_economia(ano_inicio, ano_fim, modo):
+def render_economia(ano_inicio: int, ano_fim: int) -> None:
     st.title("Estrutura Produtiva e Dinâmica Econômica")
     tab1, tab2, tab3, tab4 = st.tabs([
         "📍 Visão Geral", 
@@ -458,7 +459,7 @@ def render_economia(ano_inicio, ano_fim, modo):
             },
         ])
 
-def render_trabalho_renda(ano_inicio: int, ano_fim: int, modo: str) -> None:
+def render_trabalho_renda(ano_inicio: int, ano_fim: int) -> None:
     """Aba Trabalho & Renda: indicadores de mercado de trabalho e renda."""
     st.subheader("Análise do Mercado de Trabalho e Renda")
 
@@ -667,7 +668,7 @@ def render_pib_estimado(ano_inicio: int, ano_fim: int) -> None:
         > com cautela. Para fins institucionais, utilize apenas os dados oficiais.
         """)
 
-def render_sustentabilidade(ano_inicio: int, ano_fim: int, modo: str) -> None:
+def render_sustentabilidade(ano_inicio: int, ano_fim: int) -> None:
     """Aba Sustentabilidade."""
     st.subheader("Indicadores de Sustentabilidade")
     col1, col2 = st.columns(2)
@@ -763,76 +764,116 @@ def render_relatorios(ano_ini, ano_fim):
                  except Exception as e:
                      st.error(f"Erro: {e}")
 
-def render_outras_paginas(pagina, ano_inicio, ano_fim, modo):
+def render_outras_paginas(pagina: str, ano_inicio: int, ano_fim: int) -> None:
+    """Renderiza abas genéricas (Educação, Saúde, Negócios, etc.) com gráficos institucionais."""
     all_inds = cached_list_indicators()
     inds_to_show = [i for i in all_inds if get_secao_by_key(i["indicator_key"]) == pagina]
 
-    # EDUCAÇÃO: por política institucional, exibir apenas séries oriundas de arquivos reais (data/raw)
+    # Educação: exibir apenas dados reais do INEP (sem placeholders)
     if pagina == "Educação":
-        st.info("Educação: indicadores exibidos exclusivamente a partir de dados reais no banco (origem INEP).")
-        # Filtragem adicional se necessário, mas o catálogo já separa por fonte.
-        # Aqui garantimos que apenas fontes reais sejam mostradas se houver fallback manual.
+        st.info("Indicadores exibidos exclusivamente a partir de dados reais (origem INEP).")
         inds_to_show = [i for i in inds_to_show if str(i.get("source", "")).startswith("INEP")]
 
     if not inds_to_show:
-        st.info("Nenhum indicador disponível nesta categoria.")
+        st.info("Nenhum indicador disponível nesta categoria no banco de dados.")
         return
 
     for item in inds_to_show:
         df = cached_get_timeseries(item["indicator_key"], source=item["source"])
-        if df.empty: continue
+        if df.empty:
+            continue
         df = df[(df["Ano"] >= ano_inicio) & (df["Ano"] <= ano_fim)]
-        if df.empty: continue
-        
+        if df.empty:
+            continue
+
         meta = lazy_get_indicator_info(item["indicator_key"])
         title = meta.get("nome", item["indicator_key"])
-        unit = item.get('unit', '')
-        
+        unit = item.get("unit", "")
+
         st.subheader(title)
-        
-        fig = px.line(df, x="Ano", y="Valor", markers=True)
-        fig = apply_institutional_layout(fig, title=title, source=f"{item['source']} ({unit})")
+        fig = px.line(
+            df, x="Ano", y="Valor", markers=True,
+            color_discrete_sequence=["#1e3a8a"],
+        )
+        fig = plotly_institutional_theme(
+            fig,
+            title=title,
+            source=f"{item['source']} ({unit})" if unit else item["source"],
+        )
         st.plotly_chart(fig, use_container_width=True)
-        
-        if modo == "Técnico":
-            with st.expander("📊 Detalhes Técnicos"):
+
+        # Detalhes técnicos sempre disponíveis no painel interno
+        with st.expander("📊 Dados e Tendência", expanded=False):
+            try:
                 st.write(lazy_analisar_tendencia(df))
-                st.dataframe(df)
+            except Exception:
+                pass
+            st.dataframe(
+                df[["Ano", "Valor", "Unidade"]].rename(columns={"Valor": unit or "Valor"}),
+                use_container_width=True,
+            )
 
 def main() -> None:
-    # ── CSS institucional v2 (primeira chamada, antes de qualquer widget) ─────
+    """Ponto de entrada principal do Painel GV (Uso Interno – Secretarias)."""
+    # ── CSS institucional v2 ──────────────────────────────────────────────────
     apply_custom_css()
 
-    # ── Analytics ────────────────────────────────────────────────────────────
+    # ── Google Analytics (opcional) ───────────────────────────────────────────
     ga_id = os.getenv("GA_TAG_ID")
     if ga_id:
         inject_google_analytics(ga_id)
 
+    # ── Sidebar ───────────────────────────────────────────────────────────────
     logo_path = os.path.join(os.path.dirname(__file__), "..", "assets", "logo_prefeitura.png")
     if os.path.exists(logo_path):
         st.sidebar.image(logo_path, use_container_width=True)
-    
-    st.sidebar.title("Painel GV")
-    modo = st.sidebar.selectbox("Modo de Visão", ["Institucional", "Técnico", "Divulgação Pública"])
-    
-    abas = ["Visão Geral", "Economia", "Trabalho & Renda", "Negócios", "Educação", "Saúde", "Sustentabilidade", "Metodologia", "PIB Estimado", "Dashboard Executivo", "Métricas do Sistema", "Relatórios"]
-    if modo == "Divulgação Pública":
-        abas = [a for a in abas if a not in ["Relatórios", "Dashboard Executivo", "Métricas do Sistema", "PIB Estimado"]]
-        
-    pagina = st.sidebar.radio("Navegação", abas)
-    ano_inicio = st.sidebar.number_input("Ano Inicial", 2000, 2030, 2018)
-    ano_fim = st.sidebar.number_input("Ano Final", 2000, 2030, datetime.now().year)
 
-    if pagina == "Visão Geral": render_visao_geral(ano_inicio, ano_fim, modo)
-    elif pagina == "Economia": render_economia(ano_inicio, ano_fim, modo)
-    elif pagina == "Trabalho & Renda": render_trabalho_renda(ano_inicio, ano_fim, modo)
-    elif pagina == "Sustentabilidade": render_sustentabilidade(ano_inicio, ano_fim, modo)
-    elif pagina == "PIB Estimado": render_pib_estimado(ano_inicio, ano_fim)
-    elif pagina == "Dashboard Executivo": lazy_create_executive_dashboard()
-    elif pagina == "Métricas do Sistema": lazy_create_metrics_dashboard()
-    elif pagina == "Relatórios": render_relatorios(ano_inicio, ano_fim)
-    elif pagina == "Metodologia": render_metodologia()
-    else: render_outras_paginas(pagina, ano_inicio, ano_fim, modo)
+    st.sidebar.title("Painel GV")
+    st.sidebar.caption("Uso interno – Secretarias Municipais")
+
+    # Painel exclusivamente interno: todas as abas sempre disponíveis
+    ABAS = [
+        "Visão Geral",
+        "Economia",
+        "Trabalho & Renda",
+        "Negócios",
+        "Educação",
+        "Saúde",
+        "Sustentabilidade",
+        "PIB Estimado",
+        "Dashboard Executivo",
+        "Métricas do Sistema",
+        "Relatórios",
+        "Metodologia",
+    ]
+
+    pagina = st.sidebar.radio("Navegação", ABAS)
+    st.sidebar.divider()
+    ano_inicio = st.sidebar.number_input("Ano Inicial", min_value=2000, max_value=2030, value=2018)
+    ano_fim = st.sidebar.number_input("Ano Final",   min_value=2000, max_value=2030, value=datetime.now().year)
+
+    # ── Roteamento ────────────────────────────────────────────────────────────
+    if pagina == "Visão Geral":
+        render_visao_geral(ano_inicio, ano_fim)
+    elif pagina == "Economia":
+        render_economia(ano_inicio, ano_fim)
+    elif pagina == "Trabalho & Renda":
+        render_trabalho_renda(ano_inicio, ano_fim)
+    elif pagina == "Sustentabilidade":
+        render_sustentabilidade(ano_inicio, ano_fim)
+    elif pagina == "PIB Estimado":
+        render_pib_estimado(ano_inicio, ano_fim)
+    elif pagina == "Dashboard Executivo":
+        lazy_create_executive_dashboard()
+    elif pagina == "Métricas do Sistema":
+        lazy_create_metrics_dashboard()
+    elif pagina == "Relatórios":
+        render_relatorios(ano_inicio, ano_fim)
+    elif pagina == "Metodologia":
+        render_metodologia()
+    else:
+        render_outras_paginas(pagina, ano_inicio, ano_fim)
+
 
 if __name__ == "__main__":
     main()
