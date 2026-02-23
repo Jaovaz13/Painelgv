@@ -29,147 +29,35 @@ COLORS = {
 
 
 def apply_custom_css() -> None:
-    """Aplica CSS customizado para tornar o Streamlit visualmente institucional."""
-    st.markdown(
-        f"""
-        <link rel="preconnect" href="https://fonts.googleapis.com">
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
-        <style>
-        /* ── Base ─────────────────────────────────────────── */
-        html, body, [class*="st-"] {{
-            font-family: 'Outfit', sans-serif !important;
-        }}
-        .stApp {{
-            background-color: #f1f5f9;
-            background-image: radial-gradient(#cbd5e1 0.5px, transparent 0.5px);
-            background-size: 24px 24px;
-        }}
+    """Injeta CSS premium para a identidade visual institucional."""
+    st.markdown(f"""
+<style>
+/* ── Base ─────────────────────────────────────────── */
+html, body, [class*="st-"] {{ font-family: 'Outfit', sans-serif !important; }}
+.stApp {{ background-color: #f1f5f9; }}
 
-        /* ── Cards de KPI (st.metric) ─────────────────────── */
-        [data-testid="stMetric"] {{
-            background-color: {COLORS["white"]};
-            border: 1px solid {COLORS["border"]};
-            padding: 20px 18px;
-            border-radius: 14px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
-            transition: transform 0.2s, box-shadow 0.2s;
-        }}
-        [data-testid="stMetric"]:hover {{
-            transform: translateY(-3px);
-            box-shadow: 0 8px 20px rgba(30, 58, 138, 0.1);
-        }}
-        [data-testid="stMetricValue"] {{
-            font-size: 2.1rem !important;
-            font-weight: 700 !important;
-            color: {COLORS["text_dark"]} !important;
-            letter-spacing: -0.02em;
-        }}
-        [data-testid="stMetricLabel"] {{
-            color: {COLORS["text_muted"]} !important;
-            font-size: 0.88rem !important;
-            font-weight: 600 !important;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-        }}
-        [data-testid="stMetricDelta"] {{
-            font-size: 0.85rem !important;
-            font-weight: 600 !important;
-        }}
+/* ── Cards de KPI ────────────────────────────────── */
+[data-testid="stMetric"] {{
+    background-color: {COLORS["white"]};
+    border: 1px solid {COLORS["border"]};
+    padding: 18px;
+    border-radius: 14px;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+}}
+[data-testid="stMetricValue"] {{ font-size: 2.1rem !important; font-weight: 700 !important; color: {COLORS["text_dark"]} !important; }}
+[data-testid="stMetricLabel"] {{ color: {COLORS["text_muted"]} !important; font-size: 0.88rem !important; font-weight: 600 !important; text-transform: uppercase; }}
 
-        /* ── Títulos ──────────────────────────────────────── */
-        h1 {{
-            color: {COLORS["primary"]} !important;
-            font-weight: 800 !important;
-            font-family: 'Outfit', sans-serif !important;
-        }}
-        h2, h3 {{
-            color: {COLORS["text_dark"]} !important;
-            font-weight: 700 !important;
-            font-family: 'Outfit', sans-serif !important;
-        }}
+/* ── Títulos e Sidebar ───────────────────────────── */
+h1 {{ color: {COLORS["primary"]} !important; font-weight: 800 !important; }}
+section[data-testid="stSidebar"] {{ background-color: {COLORS["primary"]} !important; }}
+section[data-testid="stSidebar"] .stMarkdown, section[data-testid="stSidebar"] p, section[data-testid="stSidebar"] label {{ color: #ffffff !important; }}
 
-        /* ── Gráficos ─────────────────────────────────────── */
-        .stPlotlyChart {{
-            background: {COLORS["white"]};
-            padding: 16px;
-            border-radius: 16px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-        }}
-
-        /* ── Sidebar ──────────────────────────────────────── */
-        section[data-testid="stSidebar"] {{
-            background-color: {COLORS["primary"]} !important;
-        }}
-        section[data-testid="stSidebar"] .stMarkdown,
-        section[data-testid="stSidebar"] p,
-        section[data-testid="stSidebar"] label {{
-            color: #e2e8f0 !important;
-        }}
-        section[data-testid="stSidebar"] .stSelectbox label,
-        section[data-testid="stSidebar"] .stRadio label {{
-            color: #cbd5e1 !important;
-        }}
-        section[data-testid="stSidebar"] .stTitle {{
-            color: {COLORS["white"]} !important;
-        }}
-
-        /* ── Botões ───────────────────────────────────────── */
-        .stButton > button {{
-            border-radius: 8px;
-            background-color: {COLORS["primary"]};
-            color: {COLORS["white"]};
-            border: none;
-            font-weight: 600;
-            transition: background-color 0.25s, box-shadow 0.25s;
-        }}
-        .stButton > button:hover {{
-            background-color: #1d4ed8;
-            box-shadow: 0 4px 12px rgba(30, 58, 138, 0.3);
-        }}
-
-        /* ── Tabs ─────────────────────────────────────────── */
-        .stTabs [data-baseweb="tab-list"] {{
-            gap: 20px;
-            border-bottom: 2px solid {COLORS["border"]};
-        }}
-        .stTabs [data-baseweb="tab"] {{
-            height: 48px;
-            background-color: transparent;
-            border-radius: 6px 6px 0 0;
-            padding: 10px 16px;
-            font-weight: 600;
-            color: {COLORS["text_muted"]};
-        }}
-        .stTabs [aria-selected="true"] {{
-            color: {COLORS["primary"]} !important;
-            border-bottom: 3px solid {COLORS["primary"]} !important;
-        }}
-
-        /* ── Divisores ────────────────────────────────────── */
-        hr {{
-            margin: 2em 0 !important;
-            border: 0;
-            height: 1px;
-            background-image: linear-gradient(
-                to right,
-                rgba(0, 0, 0, 0),
-                {COLORS["border"]},
-                rgba(0, 0, 0, 0)
-            );
-        }}
-
-        /* ── Caption / Notas metodológicas ───────────────── */
-        .stCaption {{
-            color: {COLORS["text_muted"]} !important;
-            font-size: 0.78rem !important;
-            font-style: italic;
-        }}
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
+/* ── Gráficos e Tabs ─────────────────────────────── */
+.stPlotlyChart {{ background: #ffffff; padding: 16px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }}
+.stTabs [aria-selected="true"] {{ color: {COLORS["primary"]} !important; border-bottom: 2px solid {COLORS["primary"]} !important; }}
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+""", unsafe_allow_html=True)
 
 def plotly_institutional_theme(fig, title: str = "", source: str = ""):
     """

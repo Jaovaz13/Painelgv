@@ -26,13 +26,17 @@ jobs:
 
     - name: Executar Extração de Dados (ETL)
       env:
-        # Usa secrets se disponíveis, senão usa valores padrão (SQLite local)
-        # O operador || funciona como "coalesce" para strings vazias ou nulas
-        DATABASE_URL: ${{ secrets.DATABASE_URL || 'sqlite:///data/painel_gv.db' }}
-        MUNICIPIO: ${{ secrets.MUNICIPIO || 'Governador Valadares' }}
-        COD_IBGE: ${{ secrets.COD_IBGE || '3127701' }}
-        UF: ${{ secrets.UF || 'MG' }}
+        # Usa secrets se disponíveis, senão o script usará valores padrão (SQLite local)
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        MUNICIPIO: ${{ secrets.MUNICIPIO }}
+        COD_IBGE: ${{ secrets.COD_IBGE }}
+        UF: ${{ secrets.UF }}
       run: |
+        export DATABASE_URL="${DATABASE_URL:-sqlite:///data/painel_gv.db}"
+        export MUNICIPIO="${MUNICIPIO:-Governador Valadares}"
+        export COD_IBGE="${COD_IBGE:-3127701}"
+        export UF="${UF:-MG}"
+
         echo "Iniciando ETL com as seguintes configurações (seguro):"
         echo "Município: $MUNICIPIO"
         echo "Código IBGE: $COD_IBGE"

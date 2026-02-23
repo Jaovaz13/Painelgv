@@ -135,27 +135,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Modern Design System (CSS) ---
-st.markdown("""
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
-<style>
-    html, body, [class*="st-"] { font-family: 'Outfit', sans-serif !important; }
-    .stApp { background-color: #f1f5f9; background-image: radial-gradient(#cbd5e1 0.5px, transparent 0.5px); background-size: 24px 24px; }
-    [data-testid="stMetricValue"] { font-size: 2.2rem !important; font-weight: 700 !important; color: #0f172a !important; letter-spacing: -0.02em; }
-    [data-testid="stMetricLabel"] { color: #475569 !important; font-size: 0.95rem !important; font-weight: 600 !important; text-transform: uppercase; letter-spacing: 0.05em; }
-    .metric-card { background: white; padding: 24px; border-radius: 16px; border-left: 5px solid #2563eb; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); margin-bottom: 20px; }
-    .metric-card:hover { transform: translateY(-4px); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); border-left-color: #1d4ed8; }
-    .stPlotlyChart { background: white; padding: 15px; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
-    section[data-testid="stSidebar"] { background-color: #0f172a !important; }
-    section[data-testid="stSidebar"] .stMarkdown, section[data-testid="stSidebar"] p { color: #f8fafc !important; }
-    section[data-testid="stSidebar"] .stSelectbox label, section[data-testid="stSidebar"] .stSelectbox p, section[data-testid="stSidebar"] .stRadio label { color: #cbd5e1 !important; }
-    h1, h2, h3 { color: #0f172a !important; font-weight: 700 !important; font-family: 'Outfit', sans-serif !important; }
-    hr { margin: 2em 0 !important; border: 0; height: 1px; background-image: linear-gradient(to right, rgba(0,0,0,0), rgba(0,0,0,0.1), rgba(0,0,0,0)); }
-</style>
-""", unsafe_allow_html=True)
-
 # ─── Visual Components v2 (Design System Institucional) ──────────────────────
 try:
     from utils.visual_components_v2 import (
@@ -224,20 +203,35 @@ def render_indicator_header(indicator_key: str, source: str, title: str):
     st.markdown(f"### {title}{badge}", unsafe_allow_html=True)
 
 def get_pib_per_capita_df():
-    df_pib = cached_get_timeseries("PIB_TOTAL", "IBGE")
-    df_pop = cached_get_timeseries("POPULACAO_DETALHADA", "IBGE/SIDRA")
-    if df_pop.empty: df_pop = cached_get_timeseries("POPULACAO", "IBGE")
-    if df_pib.empty or df_pop.empty: return pd.DataFrame()
+    """Obtém PIB per capita do banco. Busca por qualquer fonte disponível."""
+    # 1. Tentar buscar dado real (PIB_PER_CAPITA) de qualquer fonte
+    df_direto = cached_get_timeseries("PIB_PER_CAPITA") 
+    if not df_direto.empty:
+        return df_direto.sort_values("Ano")[["Ano", "Valor", "Unidade"]]
+
+    # 2. Fallback: Cálculo manual (PIB / População)
+    df_pib = cached_get_timeseries("PIB_TOTAL")
+    df_pop = cached_get_timeseries("POPULACAO_DETALHADA")
+    if df_pop.empty:
+        df_pop = cached_get_timeseries("POPULACAO")
+
+    if df_pib.empty or df_pop.empty:
+        return pd.DataFrame()
+
     merged = pd.merge(df_pib, df_pop, on="Ano", suffixes=("_pib", "_pop"))
-    if merged.empty: return pd.DataFrame()
+    if merged.empty:
+        return pd.DataFrame()
+
     merged = merged.sort_values("Ano")
     merged["Valor"] = merged["Valor_pib"] / merged["Valor_pop"]
     merged["Unidade"] = "R$ / Hab"
     return merged[["Ano", "Valor", "Unidade"]]
 
 def get_pib_growth_df():
-    df_pib = cached_get_timeseries("PIB_TOTAL", "IBGE")
-    if df_pib.empty or len(df_pib) < 2: return pd.DataFrame()
+    """Calcula a taxa de crescimento a partir do PIB Total disponível no banco."""
+    df_pib = cached_get_timeseries("PIB_TOTAL") 
+    if df_pib.empty or len(df_pib) < 2:
+        return pd.DataFrame()
     df_pib = df_pib.sort_values("Ano")
     df_pib["Valor"] = df_pib["Valor"].pct_change() * 100
     df_pib["Unidade"] = "%"
@@ -255,11 +249,11 @@ def get_secao_by_key(key: str) -> str:
 def render_visao_geral(ano_inicio: int, ano_fim: int) -> None:
     st.subheader("Destaques do Município")
     st.markdown(f"""
-    <div style="background: linear-gradient(90deg, #1e3a8a 0%, #3b82f6 100%); padding: 30px; border-radius: 12px; color: white; margin-bottom: 30px;">
-        <h2 style="color: white !important; margin: 0;">Bem-vindo ao Observatório de {MUNICIPIO}</h2>
-        <p style="margin: 10px 0 0 0; opacity: 0.9;">Acompanhe em tempo real os principais indicadores econômicos, sociais e de sustentabilidade de nossa cidade.</p>
-    </div>
-    """, unsafe_allow_html=True)
+<div style="background: linear-gradient(90deg, #1e3a8a 0%, #3b82f6 100%); padding: 30px; border-radius: 12px; color: white; margin-bottom: 30px;">
+<h2 style="color: white !important; margin: 0;">Bem-vindo ao Observatório de {MUNICIPIO}</h2>
+<p style="margin: 10px 0 0 0; opacity: 0.9;">Acompanhe em tempo real os principais indicadores econômicos, sociais e de sustentabilidade de nossa cidade.</p>
+</div>
+""", unsafe_allow_html=True)
 
     st.subheader("📍 Localização Estratégica")
     col_map, col_info = st.columns([2, 1])
@@ -280,10 +274,10 @@ def render_visao_geral(ano_inicio: int, ano_fim: int) -> None:
     st.divider()
 
     # ── Grade principal de KPIs ──────────────────────────────────
-    pop_det = cached_get_timeseries("POPULACAO_DETALHADA", "IBGE/SIDRA")
+    pop_det = cached_get_timeseries("POPULACAO_DETALHADA")
     if pop_det.empty:
-        pop_det = cached_get_timeseries("POPULACAO", "IBGE")
-    pib = cached_get_timeseries("PIB_TOTAL", "IBGE")
+        pop_det = cached_get_timeseries("POPULACAO")
+    pib = cached_get_timeseries("PIB_TOTAL")
     df_pc = get_pib_per_capita_df()
     df_gr = get_pib_growth_df()
 

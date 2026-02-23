@@ -27,13 +27,13 @@ logger = logging.getLogger(__name__)
 # URLs da API do IBGE
 IBGE_API_BASE = "https://servicodados.ibge.gov.br/api/v3"
 
-# URLs para dados do município de Governador Valadares (código 3127701)
-PIB_MUNICIPAL_URL = f"{IBGE_API_BASE}/agregados/73055/pesquisa/37/variaveis/4532?localidade=3127701"
-PIB_PER_CAPITA_URL = f"{IBGE_API_BASE}/agregados/73055/pesquisa/37/variaveis/4609?localidade=3127701"
+# URLs da API do IBGE (Agregado 5938 - PIB Municipal com Referência 2010)
+PIB_MUNICIPAL_URL = f"{IBGE_API_BASE}/agregados/5938/periodos/all/variaveis/37?localidades=N6[3127701]"
+PIB_PER_CAPITA_URL = f"{IBGE_API_BASE}/agregados/5938/periodos/all/variaveis/541?localidades=N6[3127701]"
 
-# URLs alternativas (municipios)
-PIB_MUNICIPAL_URL_ALT = f"{IBGE_API_BASE}/agregados/73055/pesquisa/37/variaveis/4532?localidade=3127701&periodo=2002,2003,2004,2005,2006,2007,2008,2009,2010,2011,2012,2013,2014,2015,2016,2017,2018,2019,2020,2021,2022"
-PIB_PER_CAPITA_URL_ALT = f"{IBGE_API_BASE}/agregados/73055/pesquisa/37/variaveis/4609?localidade=3127701&periodo=2002,2003,2004,2005,2006,2007,2008,2009,2010,2011,2012,2013,2014,2015,2016,2017,2018,2019,2020,2021,2022"
+# URLs alternativas (mantidas se necessário, mas 5938 é a oficial)
+PIB_MUNICIPAL_URL_ALT = f"{IBGE_API_BASE}/agregados/5938/pesquisa/37/variaveis/37?localidade=3127701"
+PIB_PER_CAPITA_URL_ALT = f"{IBGE_API_BASE}/agregados/5938/pesquisa/37/variaveis/541?localidade=3127701"
 
 # URLs para dados de todos os municípios
 PIB_MUNICIPAL_ALL_URL = f"{IBGE_API_BASE}/agregados/73055/pesquisa/37/variaveis/4532?localidade=BR"
