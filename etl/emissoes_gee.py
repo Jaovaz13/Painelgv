@@ -20,7 +20,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database import get_session, Indicator
-from config import DATA_DIR
+from config import DATA_DIR, COD_IBGE, MUNICIPIO, UF
 
 logger = logging.getLogger(__name__)
 
@@ -43,9 +43,9 @@ def load_emissoes_from_raw() -> Optional[Dict]:
         logger.info(f"Carregando emissões de {csv_path}")
         
         data = {
-            "municipio": "Governador Valadares",
-            "codigo_ibge": "3127701",
-            "emissoes": {}
+            "municipio": MUNICIPIO,
+            "codigo_ibge": str(COD_IBGE),
+            "emissoes": {},
         }
         
         for _, row in df.iterrows():
@@ -72,7 +72,7 @@ def extrair_emissoes_municipais() -> Optional[Dict]:
     """
     try:
         # Tenta URL oficial da API SEEG
-        url = f"{SEEG_API_BASE}/municipios/3127701/emissoes"
+        url = f"{SEEG_API_BASE}/municipios/{COD_IBGE}/emissoes"
         response = requests.get(url, timeout=30)
         if response.status_code == 200:
             data = response.json()
@@ -109,70 +109,64 @@ def processar_serie_emissoes(dados: Dict) -> List[Dict]:
     return serie
 
 
-def salvar_emissoes_no_banco(session, dados: List[Dict]):
-    """Salva dados de emissões no banco de dados"""
+def salvar_emissoes_no_banco(session: Session, dados: List[Dict]) -> None:
+    """Salva dados de emissões no banco de dados."""
     for item in dados:
-        # Verificar se já existe para evitar violação de constraint
-        existing = session.query(Indicator).filter_by(
-            indicator_key="EMISSOES_GEE",
-            source="SEEG",
-            year=item["Ano"]
-        ).first()
-        
+        existing = (
+            session.query(Indicator)
+            .filter_by(
+                indicator_key="EMISSOES_GEE",
+                source="SEEG",
+                year=item["Ano"],
+                municipality_code=str(COD_IBGE),
+            )
+            .first()
+        )
+
         if existing:
-            # Atualiza registro existente
             existing.value = item["Valor"]
             existing.collected_at = datetime.now()
-            session.commit()
         else:
-            # Cria novo registro
             indicator = Indicator(
                 indicator_key="EMISSOES_GEE",
                 source="SEEG",
                 year=item["Ano"],
                 value=item["Valor"],
-                municipality_code="3127701",
-                municipality_name="Governador Valadares",
-                uf="MG",
+                municipality_code=str(COD_IBGE),
+                municipality_name=MUNICIPIO,
+                uf=UF,
                 unit="tCO2e",
-                collected_at=datetime.now()
+                collected_at=datetime.now(),
             )
             session.add(indicator)
-    
-    logger.info(f"Salvos {len(dados)} registros de Emissões GEE")
+
+    logger.info("Salvos %s registros de Emissões GEE", len(dados))
 
 
 def run_etl_emissoes_gee():
     """Executa ETL completo para dados de Emissões GEE"""
     logger.info("Iniciando ETL para dados de Emissões GEE")
-    
-    session = get_session()
-    
-    try:
-        # Extrair dados de emissões
-        logger.info("Extraindo dados de emissões GEE...")
-        dados_emissoes = extrair_emissoes_municipais()
-        if dados_emissoes:
-            serie_emissoes = processar_serie_emissoes(dados_emissoes)
-            if serie_emissoes:
-                salvar_emissoes_no_banco(session, serie_emissoes)
+
+    with get_session() as session:
+        try:
+            logger.info("Extraindo dados de emissões GEE...")
+            dados_emissoes = extrair_emissoes_municipais()
+            if dados_emissoes:
+                serie_emissoes = processar_serie_emissoes(dados_emissoes)
+                if serie_emissoes:
+                    salvar_emissoes_no_banco(session, serie_emissoes)
+                else:
+                    logger.warning("Nenhum dado de emissões encontrado")
             else:
-                logger.warning("Nenhum dado de emissões encontrado")
-        else:
-            logger.error(
-                "Falha ao extrair dados de emissões. "
-                "Verifique: (1) API SEEG, (2) arquivo data/raw/emissoes_gee.csv"
-            )
-        
-        session.commit()
-        logger.info("ETL para dados de Emissões GEE concluído com sucesso")
-        
-    except Exception as e:
-        session.rollback()
-        logger.error(f"Erro no ETL de Emissões GEE: {e}")
-        raise
-    finally:
-        session.close()
+                logger.error(
+                    "Falha ao extrair dados de emissões. "
+                    "Verifique: (1) API SEEG, (2) arquivo data/raw/emissoes_gee.csv"
+                )
+
+            logger.info("ETL para dados de Emissões GEE concluído com sucesso")
+        except Exception as e:
+            logger.error(f"Erro no ETL de Emissões GEE: {e}")
+            raise
 
 
 if __name__ == "__main__":

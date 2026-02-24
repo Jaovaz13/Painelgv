@@ -130,7 +130,10 @@ def run_rais(filename: str = "rais.csv") -> int:
 # ------------------------------------------------------------------------------
 
 def run() -> None:
+    """Executa ETL de Trabalho e Renda com anos dinâmicos."""
     logger.info("--- Iniciando ETL Trabalho e Renda ---")
-    run_caged(range(2020, 2025)) 
+    ano_atual = datetime.now().year
+    # Coleta desde 2019 até o ano atual (inclusive)
+    run_caged(list(range(2019, ano_atual + 1)))
     run_rais()
     logger.info("--- Fim ETL Trabalho e Renda ---")

@@ -20,7 +20,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database import get_session, Indicator
-from config import DATA_DIR
+from config import DATA_DIR, COD_IBGE, MUNICIPIO
 
 logger = logging.getLogger(__name__)
 
@@ -43,9 +43,9 @@ def load_icms_from_raw() -> Optional[Dict]:
         logger.info(f"Carregando ICMS de {csv_path}")
         
         data = {
-            "municipio": "Governador Valadares",
-            "codigo_ibge": "3127701",
-            "icms": {}
+            "municipio": MUNICIPIO,
+            "codigo_ibge": str(COD_IBGE),
+            "icms": {},
         }
         
         for _, row in df.iterrows():
@@ -72,7 +72,7 @@ def extrair_icms_municipal() -> Optional[Dict]:
     """
     try:
         # Tenta API SEFAZ-MG
-        url = f"{SEFAZ_API_BASE}/icms/municipios/3127701"
+        url = f"{SEFAZ_API_BASE}/icms/municipios/{COD_IBGE}"
         response = requests.get(url, timeout=30)
         if response.status_code == 200:
             data = response.json()

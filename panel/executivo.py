@@ -150,7 +150,7 @@ def create_trends_section():
             if len(df) >= 2:
                 x = df['Ano'].values
                 y = df['Valor'].values
-                slope = np.polyfit(x, y)[0]  # Coeficiente angular
+                slope = np.polyfit(x, y, 1)[0]  # Coeficiente angular
                 
                 trend = "crescente" if slope > 0 else "decrescente" if slope < 0 else "estável"
                 
@@ -178,15 +178,46 @@ def create_comparativos_section():
     st.info("Funcionalidade em desenvolvimento para benchmarks regionais.")
 
 def get_executive_metrics() -> Dict[str, Any]:
-    """Retorna KPIs executivos para o dashboard."""
-    # Implementar cálculo de KPIs reais
+    """
+    KPIs do sistema calculados dinamicamente a partir do banco de dados.
+    Nunca retorna valores fixos.
+    """
+    from database import list_indicators, get_session, Indicator
+    from datetime import timedelta
+
+    indicators = list_indicators()
+    total = len(indicators)
+
+    if total == 0:
+        return {
+            "atualizacao": 0.0,
+            "qualidade_dados": 0.0,
+            "cobertura_indicadores": 0,
+            "alertas_ativas": len(alert_manager.alert_history),
+        }
+
+    com_unidade = len([i for i in indicators if (i.get("unit") or "").strip()])
+    threshold = datetime.now() - timedelta(days=365)
+
+    try:
+        with get_session() as session:
+            atualizados = (
+                session.query(Indicator)
+                .filter(
+                    Indicator.municipality_code == str(COD_IBGE),
+                    Indicator.collected_at >= threshold,
+                )
+                .count()
+            )
+    except Exception as e:
+        logger.error(f"Erro ao calcular métricas executivas: {e}")
+        atualizados = 0
+
     return {
-        'atualizacao': 0.975,  # 97.5%
-        'qualidade_dados': 0.942,  # 94.2%
-        'cobertura_indicadores': 52,
-        'performance': 0.981,  # 98.1%
-        'alertas_ativas': len(alert_manager.alert_history),
-        'system_score': 0.95
+        "atualizacao": atualizados / total if total else 0.0,
+        "qualidade_dados": com_unidade / total if total else 0.0,
+        "cobertura_indicadores": total,
+        "alertas_ativas": len(alert_manager.alert_history),
     }
 
 def get_strategic_insights() -> List[str]:

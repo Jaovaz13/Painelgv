@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Generator
+from contextlib import contextmanager
 
 import pandas as pd
 from sqlalchemy import (
@@ -13,7 +14,7 @@ from sqlalchemy import (
     UniqueConstraint,
     create_engine,
     text,
-    exc
+    exc,
 )
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from sqlalchemy.sql import func
@@ -36,9 +37,14 @@ if "postgresql" in DATABASE_URL:
 
 try:
     engine = create_engine(DATABASE_URL, future=True, **db_args)
-    SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+    SessionLocal = sessionmaker(
+        bind=engine,
+        autoflush=False,
+        autocommit=False,
+        future=True,
+    )
 except Exception as e:
-    logger.error(f"Falha CRÍTICA ao criar engine do banco: {e}")
+    logger.error("Falha CRÍTICA ao criar engine do banco: %s", e)
     # Fallback silencioso para permitir importação em ambientes de build/CI
     engine = None
     SessionLocal = None
@@ -84,18 +90,35 @@ def init_db() -> bool:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         
-        logger.info("Inicializando tabelas em %s", DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else 'local/sqlite')
+        logger.info(
+            "Inicializando tabelas em %s",
+            DATABASE_URL.split("@")[-1] if "@" in DATABASE_URL else "local/sqlite",
+        )
         Base.metadata.create_all(bind=engine)
         return True
     except Exception as e:
         logger.error(f"Erro ao inicializar banco de dados: {e}")
         return False
 
-def get_session() -> Optional[Session]:
-    """Retorna uma sessão de banco com tratamento de erro."""
+@contextmanager
+def get_session() -> Generator["Session", None, None]:
+    """
+    Context manager que abre, gerencia e fecha sessão de banco automaticamente.
+    Faz rollback em caso de exceção e sempre fecha ao final.
+    """
     if SessionLocal is None:
-        return None
-    return SessionLocal()
+        raise RuntimeError(
+            "SessionLocal não inicializado. Verifique DATABASE_URL no config."
+        )
+    session = SessionLocal()
+    try:
+        yield session
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
 
 def upsert_indicators(
     df: pd.DataFrame,
@@ -107,23 +130,25 @@ def upsert_indicators(
     municipality_name: str = MUNICIPIO,
     uf: str = UF,
 ) -> int:
-    """Insere/atualiza registros de indicadores de forma idempotente."""
+    """
+    Insere/atualiza registros de indicadores de forma idempotente.
+
+    Espera um DataFrame com colunas: ["year", "value"] e opcionalmente
+    ["month", "unit", "manual"].
+    """
     if df.empty:
         return 0
-        
+
     required_cols = {"year", "value"}
     if not required_cols.issubset(df.columns):
-        raise ValueError(f"Faltam colunas obrigatórias em {indicator_key}: {required_cols}")
+        raise ValueError(
+            f"Faltam colunas em {indicator_key}: {required_cols}"
+        )
 
     records = df.to_dict(orient="records")
     inserted = 0
 
-    session = get_session()
-    if session is None:
-        logger.error("Não foi possível abrir sessão para upsert.")
-        return 0
-
-    try:
+    with get_session() as session:
         for row in records:
             year = int(row["year"])
             month = int(row.get("month", 0))
@@ -131,7 +156,7 @@ def upsert_indicators(
             unit = row.get("unit")
             manual = row.get("manual", False)
 
-            existing = (
+            existing: Optional[Indicator] = (
                 session.query(Indicator)
                 .filter_by(
                     municipality_code=municipality_code,
@@ -151,29 +176,23 @@ def upsert_indicators(
                 if category != "Geral":
                     existing.category = category
             else:
-                session.add(Indicator(
-                    municipality_code=municipality_code,
-                    municipality_name=municipality_name,
-                    uf=uf,
-                    indicator_key=indicator_key,
-                    source=source,
-                    category=category,
-                    year=year,
-                    month=month,
-                    value=value,
-                    unit=unit,
-                    manual=manual,
-                    collected_at=datetime.now()
-                ))
+                session.add(
+                    Indicator(
+                        municipality_code=municipality_code,
+                        municipality_name=municipality_name,
+                        uf=uf,
+                        indicator_key=indicator_key,
+                        source=source,
+                        category=category,
+                        year=year,
+                        month=month,
+                        value=value,
+                        unit=unit,
+                        manual=manual,
+                        collected_at=datetime.now(),
+                    )
+                )
                 inserted += 1
-        
-        session.commit()
-    except Exception as e:
-        session.rollback()
-        logger.error(f"Falha no upsert de {indicator_key}: {e}")
-        raise
-    finally:
-        session.close()
 
     logger.info("Upsert '%s' (%s): %s novos.", indicator_key, source, inserted)
     return inserted

@@ -14,7 +14,7 @@ from datetime import datetime
 
 def audit_all_indicators():
     """Audita todos os indicadores no banco de dados"""
-    session = get_session()
+    with get_session() as session:
     
     print("=" * 80)
     print("AUDITORIA COMPLETA DE DADOS - Painel GV")
@@ -85,8 +85,6 @@ def audit_all_indicators():
     # Indicadores sem dados
     no_data_indicators = session.query(Indicator.indicator_key).distinct().count()
     print(f"\nTotal de chaves de indicadores distintas: {no_data_indicators}")
-    
-    session.close()
     
     print("\n" + "=" * 80)
     print("AUDITORIA CONCLUÍDA")

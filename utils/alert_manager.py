@@ -173,43 +173,44 @@ class AlertManager:
     def check_data_freshness(self) -> Dict[str, Any]:
         """Verifica frescura dos dados no banco."""
         from database import get_session, Indicator
-        from utils.fallback_manager import fallback_manager
-        
+
         freshness_status = {
-            'timestamp': datetime.now().isoformat(),
-            'status': 'fresh',
-            'issues': [],
-            'freshness_score': 1.0,
-            'oldest_data': None,
-            'stale_indicators': []
+            "timestamp": datetime.now().isoformat(),
+            "status": "fresh",
+            "issues": [],
+            "freshness_score": 1.0,
+            "oldest_data": None,
+            "stale_indicators": [],
         }
-        
+
         try:
             with get_session() as session:
-                # Buscar dados mais antigos por fonte
-                query = session.query(
-                    Indicator.municipality_code == str(COD_IBGE),
-                    Indicator.collected_at.desc()
-                ).first()
-                
-                if query:
-                    oldest_data = query.collected_at
-                    freshness_status['oldest_data'] = oldest_data.isoformat()
-                    
-                    # Calcular idade em horas
+                record = (
+                    session.query(Indicator)
+                    .filter(Indicator.municipality_code == str(COD_IBGE))
+                    .order_by(Indicator.collected_at.desc())
+                    .first()
+                )
+
+                if record:
+                    oldest_data = record.collected_at
+                    freshness_status["oldest_data"] = oldest_data.isoformat()
                     age_hours = (datetime.now() - oldest_data).total_seconds() / 3600
-                    
-                    freshness_status['freshness_score'] = max(0, 1 - (age_hours / self.thresholds['data_age_hours']))
-                    
-                    if age_hours > self.thresholds['data_age_hours']:
-                        freshness_status['status'] = 'stale'
-                        freshness_status['issues'].append(f"Dados com {age_hours:.1f} horas sem atualização")
-        
+                    freshness_status["freshness_score"] = max(
+                        0.0, 1.0 - (age_hours / self.thresholds["data_age_hours"])
+                    )
+                    if age_hours > self.thresholds["data_age_hours"]:
+                        freshness_status["status"] = "stale"
+                        freshness_status["issues"].append(
+                            f"Dados com {age_hours:.1f}h sem atualização"
+                        )
         except Exception as e:
             logger.error(f"Erro ao verificar frescura dos dados: {e}")
-            freshness_status['status'] = 'error'
-            freshness_status['issues'].append("Não foi possível verificar frescura dos dados")
-        
+            freshness_status["status"] = "error"
+            freshness_status["issues"].append(
+                "Não foi possível verificar frescura dos dados"
+            )
+
         return freshness_status
     
     def check_etl_health(self) -> Dict[str, Any]:
