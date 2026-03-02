@@ -42,5 +42,5 @@ jobs:
         echo "Código IBGE: $COD_IBGE"
         echo "UF: $UF"
         
-        # Roda o script mestre que integra todos os dados
-        python etl/run_all.py
+        # Roda o orquestrador oficial do ETL
+        python -c "from etl.etl_runner import run_all; run_all()"

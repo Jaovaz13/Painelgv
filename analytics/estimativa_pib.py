@@ -179,6 +179,81 @@ def estimar_pib(anos_frente: int = 3, method: str = "auto") -> pd.DataFrame:
 
     return df_base
 
+def estimar_pib_com_ic(n_horizonte: int = 3, n_simulacoes: int = 200) -> pd.DataFrame:
+    """
+    Gera projeção do PIB com intervalo de confiança (80%) via bootstrap de resíduos
+    sobre o modelo Holt-Winters.
+
+    Importante:
+    - Não é dado observado; é incerteza estatística sobre a projeção.
+    - Baseado exclusivamente na série histórica real do PIB no banco.
+
+    Args:
+        n_horizonte: Quantos anos à frente projetar
+        n_simulacoes: Número de simulações para IC (bootstrap)
+
+    Returns:
+        DataFrame com colunas: Ano, Valor (central), IC_Inferior, IC_Superior, Unidade
+    """
+    get_timeseries, _ = get_db_functions()
+    df = get_timeseries("PIB_TOTAL", "IBGE")
+    if df.empty or len(df) < 4:
+        logger.warning("Dados insuficientes para projeção com IC.")
+        return pd.DataFrame()
+
+    df = df.sort_values("Ano")
+    y = df["Valor"].astype(float).values
+    anos_hist = df["Ano"].astype(int).values
+    ultimo_ano = int(anos_hist[-1])
+    anos_proj = list(range(ultimo_ano + 1, ultimo_ano + n_horizonte + 1))
+
+    try:
+        modelo_base = ExponentialSmoothing(
+            y, trend="add", damped_trend=True, seasonal=None, initialization_method="estimated"
+        ).fit()
+        fitted = modelo_base.fittedvalues
+        resid = (y - fitted)
+        resid = resid[~pd.isna(resid)]
+        if len(resid) < 2:
+            return pd.DataFrame()
+    except Exception as e:
+        logger.warning("Falha ao ajustar modelo base para IC: %s", e)
+        return pd.DataFrame()
+
+    projecoes = []
+    for _ in range(int(n_simulacoes)):
+        try:
+            # Bootstrap de resíduos (re-amostragem com reposição)
+            resid_sample = np.random.choice(resid, size=len(y), replace=True)
+            y_sim = y + resid_sample
+            y_sim = np.clip(y_sim, a_min=0, a_max=None)
+
+            modelo = ExponentialSmoothing(
+                y_sim, trend="add", damped_trend=True, seasonal=None, initialization_method="estimated"
+            ).fit()
+            forecast = modelo.forecast(n_horizonte)
+            projecoes.append(forecast)
+        except Exception:
+            continue
+
+    if not projecoes:
+        return pd.DataFrame()
+
+    matriz = np.array(projecoes, dtype=float)
+    central = np.median(matriz, axis=0)
+    ic_inf = np.percentile(matriz, 10, axis=0)
+    ic_sup = np.percentile(matriz, 90, axis=0)
+
+    return pd.DataFrame(
+        {
+            "Ano": anos_proj,
+            "Valor": central,
+            "IC_Inferior": ic_inf,
+            "IC_Superior": ic_sup,
+            "Unidade": "R$ mil",
+        }
+    )
+
 def salvar_estimativa():
     """Gera e salva a estimativa no banco."""
     _, upsert_indicators = get_db_functions()

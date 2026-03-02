@@ -1,7 +1,7 @@
 import time
 import logging
 from datetime import datetime, timedelta
-from etl.run_all import run_all
+from etl.etl_runner import run_all
 
 # Configuração de logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

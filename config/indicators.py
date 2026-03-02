@@ -171,6 +171,20 @@ CATALOGO_INDICADORES = {
         "api": True,
         "categoria": "Trabalho e Renda",
         "unidade": "Vínculos"
+    },
+    "LEITOS_HOSPITALARES": {
+        "nome": "Leitos Hospitalares (CNES)",
+        "fonte": "CNES",
+        "api": False,
+        "categoria": "Saúde",
+        "unidade": "Leitos"
+    },
+    "ISDM": {
+        "nome": "Índice Sintético de Desenvolvimento Municipal (ISDM)",
+        "fonte": "Indicador Interno",
+        "api": False,
+        "categoria": "Sustentabilidade",
+        "unidade": "Score (0-1)"
     }
 }
 
@@ -253,5 +267,17 @@ SOURCES_METADATA = {
         "auto_update": False,
         "manual_check": True,
         "data_format": "csv"
+    },
+    "CNES": {
+        "url": "https://apidadosabertos.saude.gov.br/cnes",
+        "auto_update": True,
+        "manual_check": False,
+        "data_format": "api"
+    },
+    "PROJECAO_INTERNA": {
+        "url": "Calculado estatisticamente",
+        "auto_update": True,
+        "manual_check": False,
+        "data_format": "internal"
     }
 }

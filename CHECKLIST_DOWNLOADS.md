@@ -64,7 +64,7 @@ c:\painel_gv\data\raw\
 Execute o comando abaixo para carregar os dados no sistema:
 ```powershell
 cd c:\painel_gv
-python -m etl.run_all
+python -c "from etl.etl_runner import run_all; run_all()"
 ```
 
 ---

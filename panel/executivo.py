@@ -166,16 +166,55 @@ def create_trends_section():
                 latest = df.iloc[-1]
                 st.caption(f"Último valor: {latest['Valor']:,.0f} em {int(latest['Ano'])}")
 
-def create_comparativos_section():
-    """Cria seção de análise comparativa."""
-    # Implementar comparações intermunicipais
-    st.subheader("📊 Análise Comparativa")
+def create_comparatives_section():
+    """Cria seção de análise comparativa (Scorecard Semafórico)."""
+    from config import DATA_DIR
+    import os
+
+    st.subheader("📊 Scorecard Semafórico (Benchmarks)")
     
-    # Placeholder para comparações
-    st.info("Funcionalidade em desenvolvimento para comparações intermunicipais.")
+    benchmark_path = DATA_DIR / "raw" / "benchmarks_oficiais.csv"
     
-    # Placeholder para benchmarks
-    st.info("Funcionalidade em desenvolvimento para benchmarks regionais.")
+    if not benchmark_path.exists():
+        st.info("⚠️ **Scorecard Semafórico Indisponível**: Benchmarks oficiais não encontrados em `data/raw/benchmarks_oficiais.csv`.")
+        st.caption("Para habilitar, forneça um arquivo CSV com as colunas: `indicador`, `meta_min`, `meta_max` (delimitador: semicolon).")
+        return
+
+    try:
+        df_bench = pd.read_csv(benchmark_path, sep=";")
+        for _, row in df_bench.iterrows():
+            indicador = row.get('indicador')
+            if not indicador: continue
+
+            df_val = get_timeseries(indicador)
+            if not df_val.empty:
+                ultimo_valor = float(df_val.iloc[-1]['Valor'])
+                meta_min = float(row.get('meta_min', 0))
+                meta_max = float(row.get('meta_max', 100))
+                
+                # Lógica semafórica
+                if ultimo_valor >= meta_max:
+                    cor = "green"
+                    status = "Meta Atingida"
+                elif ultimo_valor >= meta_min:
+                    cor = "orange"
+                    status = "Em Atenção"
+                else:
+                    cor = "red"
+                    status = "Crítico"
+                
+                st.markdown(f"""
+                <div style="padding:10px; border-radius:10px; border-left: 12px solid {cor}; background-color: white; margin-bottom: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                    <div style="font-size: 1.1em; font-weight: 700;">{indicador}</div>
+                    <div style="font-size: 1.5em; font-weight: 800;">{ultimo_valor:,.2f}</div>
+                    <div style="font-weight: 600; color:{cor};">{status}</div>
+                    <div style="font-size: 0.85em; color: gray;">Ref: {meta_min} - {meta_max}</div>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.caption(f"Indicador {indicador} sem dados no banco.")
+    except Exception as e:
+        st.error(f"Erro ao processar benchmarks: {e}")
 
 def get_executive_metrics() -> Dict[str, Any]:
     """

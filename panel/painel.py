@@ -70,6 +70,10 @@ def lazy_salvar_estimativa(*args, **kwargs):
     from analytics.estimativa_pib import salvar_estimativa
     return salvar_estimativa(*args, **kwargs)
 
+def lazy_estimar_pib_com_ic(*args, **kwargs):
+    from analytics.estimativa_pib import estimar_pib_com_ic
+    return estimar_pib_com_ic(*args, **kwargs)
+
 def lazy_get_estimativa_stored(*args, **kwargs):
     from analytics.estimativa_pib import get_estimativa_stored
     return get_estimativa_stored(*args, **kwargs)
@@ -77,6 +81,14 @@ def lazy_get_estimativa_stored(*args, **kwargs):
 def lazy_analisar_tendencia(*args, **kwargs):
     from analytics.tendencias import analisar_tendencia
     return analisar_tendencia(*args, **kwargs)
+
+def lazy_calcular_isdm(*args, **kwargs):
+    from analytics.indice_sintetico import calcular_isdm
+    return calcular_isdm(*args, **kwargs)
+
+def lazy_get_isdm_historico(*args, **kwargs):
+    from analytics.indice_sintetico import get_isdm_historico
+    return get_isdm_historico(*args, **kwargs)
 
 def lazy_gerar_relatorio_docx(*args, **kwargs):
     from reports.report_docx import gerar_relatorio_docx
@@ -106,6 +118,11 @@ def lazy_run_rais_caged_extended():
     from etl.rais_caged_extended import run
     return run
 
+def lazy_run_caged_setores():
+    """Lazy load do ETL de setores (CAGED por CNAE)."""
+    from etl.caged_setores import run
+    return run
+
 # ─── Cache de consultas ao banco (reduz latência e créditos Neon) ────────────
 @st.cache_data(ttl=3600, show_spinner="Buscando dados...")
 def cached_get_timeseries(indicator_key: str, source: Optional[str] = None) -> pd.DataFrame:
@@ -124,10 +141,23 @@ INDICATOR_MAPPING = {
     "Economia": ["PIB_TOTAL", "PIB_PER_CAPITA", "PIB_ESTIMADO", "PIB_CRESCIMENTO", "RECEITA_VAF", "RECEITA_ICMS"],
     "Trabalho & Renda": ["EMPREGOS_RAIS", "EMPREGOS_CAGED", "SALDO_CAGED_MENSAL", "SALDO_CAGED_ANUAL", "SALDO_CAGED", "NUM_EMPRESAS", "EMPRESAS_ATIVAS", "SEBRAE_GERAL", "EMPREGOS_SEBRAE", "EMPREENDEDORES_MEI", "SALARIO_MEDIO_MG"],
     "Educação": ["MATRICULAS_TOTAL", "ESCOLAS_FUNDAMENTAL", "IDEB_ANOS_INICIAIS", "IDEB_ANOS_FINAIS", "TAXA_APROVACAO_FUNDAMENTAL"],
-    "Saúde": ["MORTALIDADE_INFANTIL", "OBITOS_TOTAL"],
-    "Sustentabilidade": ["IDSC_GERAL", "INDICE_SUSTENTABILIDADE", "EMISSOES_GEE", "SEEG_AR", "SEEG_GASES", "AREA_URBANA", "VEGETACAO_NATIVA", "USO_AGROPECUARIO"],
+    "Saúde": ["MORTALIDADE_INFANTIL", "OBITOS_TOTAL", "LEITOS_HOSPITALARES"],
+    "Sustentabilidade": ["IDSC_GERAL", "INDICE_SUSTENTABILIDADE", "EMISSOES_GEE", "SEEG_AR", "SEEG_GASES", "AREA_URBANA", "VEGETACAO_NATIVA", "USO_AGROPECUARIO", "ISDM"],
     "Negócios": ["EMPRESAS_FORMAIS", "SEBRAE_GERAL", "ESTABELECIMENTOS_SEBRAE"],
 }
+
+def export_plotly_png(fig, filename: str):
+    """
+    Exporta um gráfico Plotly para PNG usando Kaleido.
+    Retorna o buffer de bytes do PNG.
+    """
+    try:
+        import io
+        img_bytes = fig.to_image(format="png", engine="kaleido")
+        return img_bytes
+    except Exception as e:
+        logger.error(f"Erro ao exportar PNG: {e}")
+        return None
 
 st.set_page_config(
     page_title=TITULO_SECRETARIA,
@@ -201,6 +231,34 @@ def render_indicator_header(indicator_key: str, source: str, title: str):
     elif status["status"] == "update":
         badge = f' <span style="color:orange;font-size:0.8em;">{status["message"]} — <a href="{status["url"]}" target="_blank">{status["url"]}</a></span>'
     st.markdown(f"### {title}{badge}", unsafe_allow_html=True)
+
+def check_data_staleness(df: pd.DataFrame, indicator_label: str, threshold_years: int = 2) -> None:
+    """
+    Exibe aviso no painel se os dados do indicador estiverem desatualizados.
+
+    Args:
+        df: DataFrame com coluna 'Ano'
+        indicator_label: Nome amigável do indicador para exibição
+        threshold_years: Quantidade de anos de atraso para acionar o aviso
+    """
+    try:
+        if df.empty or "Ano" not in df.columns:
+            return
+        ultimo_ano = int(pd.to_numeric(df["Ano"], errors="coerce").max())
+        ano_atual = datetime.now().year
+        defasagem = ano_atual - ultimo_ano
+        if defasagem > threshold_years:
+            st.warning(
+                f"{indicator_label}: último dado disponível é de {ultimo_ano} "
+                f"({defasagem} {'ano' if defasagem == 1 else 'anos'} de defasagem). "
+                "Verifique a fonte ou execute o ETL."
+            )
+        elif defasagem == 1:
+            st.info(
+                f"{indicator_label}: dado de {ultimo_ano} — pode existir versão mais recente na fonte."
+            )
+    except Exception:
+        return
 
 def get_pib_per_capita_df():
     """Obtém PIB per capita do banco. Busca por qualquer fonte disponível."""
@@ -281,6 +339,11 @@ def render_visao_geral(ano_inicio: int, ano_fim: int) -> None:
     df_pc = get_pib_per_capita_df()
     df_gr = get_pib_growth_df()
 
+    check_data_staleness(pop_det, "População")
+    check_data_staleness(pib, "PIB Total")
+    check_data_staleness(df_pc, "PIB per Capita")
+    check_data_staleness(df_gr, "Crescimento do PIB")
+
     def _val_pop():
         if not pop_det.empty:
             ult = pop_det.sort_values("Ano").iloc[-1]
@@ -321,6 +384,11 @@ def render_visao_geral(ano_inicio: int, ano_fim: int) -> None:
     vaf  = cached_get_timeseries("RECEITA_VAF", "SEFAZ_MG")
     gee  = cached_get_timeseries("EMISSOES_GEE", "SEEG")
 
+    check_data_staleness(idhm, "IDH-M")
+    check_data_staleness(gini, "Índice GINI")
+    check_data_staleness(vaf, "VAF")
+    check_data_staleness(gee, "Emissões GEE")
+
     render_kpi_grid([
         {
             "label": "IDH-M",
@@ -348,6 +416,45 @@ def render_visao_geral(ano_inicio: int, ano_fim: int) -> None:
         },
     ])
 
+    # ── ISDM (índice sintético interno) ─────────────────────────────────────
+    st.divider()
+    st.subheader("Índice Sintético de Desenvolvimento Municipal (ISDM)")
+    try:
+        isdm = lazy_calcular_isdm()
+        df_isdm = lazy_get_isdm_historico()
+        if isdm.get("score_total") is not None:
+            col_isdm1, col_isdm2 = st.columns([1, 2])
+            with col_isdm1:
+                st.metric("ISDM (0-100)", f"{isdm['score_percentual']:.1f}")
+                st.caption(
+                    f"Ano de referência: {isdm.get('ano')} | "
+                    f"Componentes usados: {isdm.get('componentes_usados', 0)}/{len(isdm.get('componentes', {})) or len(isdm)}"
+                )
+            with col_isdm2:
+                if df_isdm is not None and not df_isdm.empty:
+                    fig_isdm = px.line(df_isdm, x="Ano", y="Valor", markers=True)
+                    fig_isdm = plotly_institutional_theme(
+                        fig_isdm,
+                        title="Evolução do ISDM (normalizado ao histórico local)",
+                        source="Calculado internamente com base nas séries reais do banco",
+                    )
+                    st.plotly_chart(fig_isdm, use_container_width=True)
+                    
+                    # Botão de exportação opcional via Kaleido
+                    png_data = export_plotly_png(fig_isdm, "isdm_evolucao.png")
+                    if png_data:
+                        st.download_button(
+                            label="🖼️ Baixar Gráfico (PNG)",
+                            data=png_data,
+                            file_name="isdm_evolucao.png",
+                            mime="image/png"
+                        )
+        else:
+            st.info("ISDM indisponível: dados insuficientes no banco.")
+    except Exception as e:
+        logger.warning("Erro ao calcular ISDM: %s", e)
+        st.info("ISDM indisponível no momento.")
+
 def render_economia(ano_inicio: int, ano_fim: int) -> None:
     st.title("Estrutura Produtiva e Dinâmica Econômica")
     tab1, tab2, tab3, tab4 = st.tabs([
@@ -358,6 +465,7 @@ def render_economia(ano_inicio: int, ano_fim: int) -> None:
     ])
     
     df_pib = cached_get_timeseries("PIB_TOTAL", "IBGE")
+    check_data_staleness(df_pib, "PIB Total (IBGE)")
     
     with tab1:
         st.subheader("Indicadores Principais de Economia")
@@ -419,7 +527,19 @@ def render_economia(ano_inicio: int, ano_fim: int) -> None:
                 title="Evolução do PIB Nominal (Série Histórica)",
                 source="IBGE – Contas Regionais",
             )
+            )
             st.plotly_chart(fig_evol, use_container_width=True)
+            
+            # Botão de exportação opcional via Kaleido
+            png_data = export_plotly_png(fig_evol, "pib_evolucao.png")
+            if png_data:
+                st.download_button(
+                    label="🖼️ Baixar Gráfico (PNG)",
+                    data=png_data,
+                    file_name="pib_evolucao.png",
+                    mime="image/png"
+                )
+            
             st.caption(
                 "⚠️ **Nota metodológica:** Dados oficiais do IBGE disponíveis até 2022. "
                 "Valores a partir de 2023 são **projeções estatísticas** (Holt-Winters/Híbrido) "
@@ -469,6 +589,9 @@ def render_trabalho_renda(ano_inicio: int, ano_fim: int) -> None:
         empresas = cached_get_timeseries("NUM_EMPRESAS")
     massa = cached_get_timeseries("MASSA_SALARIAL_ESTIMADA", "CAGED_ESTIMADO")
 
+    check_data_staleness(saldo_mes, "Saldo CAGED (mensal)")
+    check_data_staleness(empresas, "Empresas ativas")
+
     saldo_val   = fmt_br(saldo_mes.iloc[-1]["Valor"]) if not saldo_mes.empty else "N/D"
     saldo_delta = None
     if not saldo_mes.empty and len(saldo_mes) >= 2:
@@ -510,6 +633,7 @@ def render_trabalho_renda(ano_inicio: int, ano_fim: int) -> None:
         if jobs.empty:
             jobs = cached_get_timeseries("EMPREGOS_CAGED", "CAGED")
         if not jobs.empty:
+            check_data_staleness(jobs, "Empregos (CAGED)")
             st.subheader("📈 Estoque de Empregos (CAGED)")
             fig = px.area(
                 jobs, x="Ano", y="Valor",
@@ -525,6 +649,7 @@ def render_trabalho_renda(ano_inicio: int, ano_fim: int) -> None:
     with col_rais:
         jobs_rais = cached_get_timeseries("EMPREGOS_RAIS", "RAIS")
         if not jobs_rais.empty:
+            check_data_staleness(jobs_rais, "Empregos (RAIS)")
             st.subheader("👔 Vínculos Formais (RAIS)")
             fig = px.line(
                 jobs_rais, x="Ano", y="Valor", markers=True,
@@ -600,6 +725,63 @@ def render_trabalho_renda(ano_inicio: int, ano_fim: int) -> None:
         else:
             st.info("Dados de Escolaridade não disponíveis no banco.")
 
+    # ── Ranking de Setores (CAGED por CNAE) ────────────────────────────────
+    st.divider()
+    st.subheader("🏭 Ranking de Setores por Geração de Empregos (CAGED)")
+
+    with st.expander("🔄 Atualizar ranking (ETL Setores CAGED)", expanded=False):
+        if st.button("Executar ETL CAGED Setores", key="btn_caged_setores"):
+            with st.spinner("Atualizando setores CAGED..."):
+                try:
+                    run_fn = lazy_run_caged_setores()
+                    run_fn()
+                    st.cache_data.clear()
+                    st.success("Setores CAGED atualizados. Recarregue a página.")
+                except Exception as exc:
+                    st.error(f"Erro no ETL de setores CAGED: {exc}")
+
+    try:
+        from etl.caged_setores import SECOES_CNAE
+    except Exception:
+        SECOES_CNAE = {}
+
+    saldos_por_setor: dict[str, float] = {}
+    for letra, nome in SECOES_CNAE.items():
+        key = f"EMPREGOS_SETOR_{letra}"
+        df = cached_get_timeseries(key, "CAGED_SETORES")
+        if df.empty:
+            continue
+        df_f = df[(df["Ano"] >= ano_inicio) & (df["Ano"] <= ano_fim)]
+        if df_f.empty:
+            continue
+        saldos_por_setor[nome] = float(df_f["Valor"].sum())
+
+    if not saldos_por_setor:
+        st.info("Dados de setores indisponíveis. Execute o ETL de Setores CAGED ou forneça data/raw/caged_setores.csv.")
+        return
+
+    df_rank = (
+        pd.DataFrame.from_dict(saldos_por_setor, orient="index", columns=["Saldo"])
+        .sort_values("Saldo", ascending=True)
+        .reset_index()
+        .rename(columns={"index": "Setor"})
+    )
+
+    fig_rank = px.bar(
+        df_rank,
+        x="Saldo",
+        y="Setor",
+        orientation="h",
+        color="Saldo",
+        color_continuous_scale=["#dc2626", "#f97316", "#16a34a"],
+    )
+    fig_rank = plotly_institutional_theme(
+        fig_rank,
+        title=f"Saldo de Empregos por Setor – {ano_inicio} a {ano_fim}",
+        source="Novo CAGED / MTE (agregado por seção CNAE)",
+    )
+    st.plotly_chart(fig_rank, use_container_width=True)
+
 def render_pib_estimado(ano_inicio: int, ano_fim: int) -> None:
     """Exibe as projeções do PIB com notas metodológicas claras."""
     st.subheader("Projeção do PIB Municipal")
@@ -615,6 +797,11 @@ def render_pib_estimado(ano_inicio: int, ano_fim: int) -> None:
 
     df_hist = cached_get_timeseries("PIB_TOTAL", source="IBGE")
     df_prev = lazy_get_estimativa_stored()
+    df_ic = pd.DataFrame()
+    try:
+        df_ic = lazy_estimar_pib_com_ic()
+    except Exception:
+        df_ic = pd.DataFrame()
 
     if not df_hist.empty:
         fig = go.Figure()
@@ -635,6 +822,20 @@ def render_pib_estimado(ano_inicio: int, ano_fim: int) -> None:
                     name="Projeção Estatística",
                     line=dict(color="#60a5fa", width=2, dash="dash"),
                     marker=dict(color="#60a5fa", size=7),
+                )
+            )
+
+        # Banda de intervalo de confiança (80%), quando disponível
+        if df_ic is not None and not df_ic.empty and {"IC_Inferior", "IC_Superior"}.issubset(df_ic.columns):
+            fig.add_trace(
+                go.Scatter(
+                    x=list(df_ic["Ano"]) + list(df_ic["Ano"])[::-1],
+                    y=list(df_ic["IC_Superior"]) + list(df_ic["IC_Inferior"])[::-1],
+                    fill="toself",
+                    fillcolor="rgba(96, 165, 250, 0.15)",
+                    line=dict(color="rgba(255,255,255,0)"),
+                    name="Intervalo de confiança (80%)",
+                    showlegend=True,
                 )
             )
         fig = plotly_institutional_theme(
@@ -669,6 +870,7 @@ def render_sustentabilidade(ano_inicio: int, ano_fim: int) -> None:
     with col1:
         idsc = cached_get_timeseries("IDSC_GERAL", "IDSC")
         if not idsc.empty:
+            check_data_staleness(idsc, "IDSC (Score Geral)")
             val = idsc.iloc[-1]["Valor"]
             render_kpi_grid([
                 {
@@ -693,6 +895,7 @@ def render_sustentabilidade(ano_inicio: int, ano_fim: int) -> None:
     with col2:
         emissoes = cached_get_timeseries("EMISSOES_GEE", "SEEG")
         if not emissoes.empty:
+            check_data_staleness(emissoes, "Emissões GEE (SEEG)")
             val = emissoes.iloc[-1]["Valor"]
             render_kpi_grid([
                 {
@@ -785,6 +988,7 @@ def render_outras_paginas(pagina: str, ano_inicio: int, ano_fim: int) -> None:
         unit = item.get("unit", "")
 
         st.subheader(title)
+        check_data_staleness(df, title)
         fig = px.line(
             df, x="Ano", y="Valor", markers=True,
             color_discrete_sequence=["#1e3a8a"],
