@@ -527,7 +527,6 @@ def render_economia(ano_inicio: int, ano_fim: int) -> None:
                 title="Evolução do PIB Nominal (Série Histórica)",
                 source="IBGE – Contas Regionais",
             )
-            )
             st.plotly_chart(fig_evol, use_container_width=True)
             
             # Botão de exportação opcional via Kaleido
