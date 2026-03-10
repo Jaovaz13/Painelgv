@@ -8,12 +8,14 @@ POLÍTICA: 100% DADOS REAIS
 - Fallback: arquivo em data/raw/pib_municipal.csv
 - NUNCA gera dados simulados
 """
+from __future__ import annotations
 import logging
 import requests
 import pandas as pd
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
+from sqlalchemy.orm import Session
 
 import sys
 import os
