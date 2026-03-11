@@ -20,7 +20,7 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 
-from config import LOG_FORMAT, LOG_LEVEL, MUNICIPIO, UF
+from config import LOG_FORMAT, LOG_LEVEL, MUNICIPIO, UF, DATA_DIR
 from database import get_timeseries, init_db, list_indicators
 from utils.status_check import get_indicator_status
 from utils.analytics import inject_google_analytics
@@ -231,6 +231,23 @@ def render_indicator_header(indicator_key: str, source: str, title: str):
     elif status["status"] == "update":
         badge = f' <span style="color:orange;font-size:0.8em;">{status["message"]} — <a href="{status["url"]}" target="_blank">{status["url"]}</a></span>'
     st.markdown(f"### {title}{badge}", unsafe_allow_html=True)
+
+def add_chart_download_button(fig: "go.Figure", filename: str = "grafico") -> None:
+    """
+    Adiciona botão de download PNG para um gráfico Plotly.
+    Se o backend de imagem (kaleido) não estiver disponível, falha silenciosamente.
+    """
+    import io
+    try:
+        img_bytes = fig.to_image(format="png", width=1200, height=600, scale=2)
+    except Exception:
+        return
+    st.download_button(
+        label="📥 Exportar PNG",
+        data=img_bytes,
+        file_name=f"{filename}_{datetime.now().strftime('%Y%m%d')}.png",
+        mime="image/png",
+    )
 
 def check_data_staleness(df: pd.DataFrame, indicator_label: str, threshold_years: int = 2) -> None:
     """
@@ -454,6 +471,56 @@ def render_visao_geral(ano_inicio: int, ano_fim: int) -> None:
     except Exception as e:
         logger.warning("Erro ao calcular ISDM: %s", e)
         st.info("ISDM indisponível no momento.")
+
+    # ── Scorecard semafórico (apenas com benchmarks oficiais em /raw) ───────
+    st.divider()
+    st.subheader("Scorecard de Indicadores-Chave")
+    bench_path = DATA_DIR / "raw" / "scorecard_benchmarks.csv"
+    if not bench_path.exists():
+        st.info(
+            "Benchmarks oficiais para scorecard não encontrados em data/raw/scorecard_benchmarks.csv. "
+            "Para habilitar esta seção, forneça um arquivo com colunas: indicador;limite_verde;limite_amarelo;menor_melhor."
+        )
+    else:
+        try:
+            df_bench = pd.read_csv(bench_path, sep=";", encoding="utf-8")
+            df_bench.columns = [c.lower().strip() for c in df_bench.columns]
+            cols_req = {"indicador", "limite_verde", "limite_amarelo", "menor_melhor"}
+            if not cols_req.issubset(df_bench.columns):
+                st.warning("Layout de scorecard_benchmarks.csv inesperado. Colunas requeridas: indicador;limite_verde;limite_amarelo;menor_melhor.")
+            else:
+                cols = st.columns(len(df_bench))
+                for col, (_, row_b) in zip(cols, df_bench.iterrows()):
+                    key = str(row_b["indicador"]).strip()
+                    df_ind = cached_get_timeseries(key)
+                    if df_ind.empty:
+                        with col:
+                            st.metric(key, "N/D")
+                        continue
+                    df_ind = df_ind.sort_values("Ano")
+                    valor = float(df_ind.iloc[-1]["Valor"])
+                    ano_val = int(df_ind.iloc[-1]["Ano"])
+                    lim_verde = float(row_b["limite_verde"])
+                    lim_amarelo = float(row_b["limite_amarelo"])
+                    menor_melhor = bool(row_b["menor_melhor"])
+
+                    if menor_melhor:
+                        cor = "🟢" if valor <= lim_verde else "🟡" if valor <= lim_amarelo else "🔴"
+                    else:
+                        cor = "🟢" if valor >= lim_verde else "🟡" if valor >= lim_amarelo else "🔴"
+
+                    meta = lazy_get_indicator_info(key)
+                    nome = meta.get("nome", key)
+                    unidade = meta.get("unidade", "")
+                    with col:
+                        st.metric(
+                            label=f"{cor} {nome}",
+                            value=f"{valor:,.2f} {unidade}".strip(),
+                            help=f"Ano: {ano_val}",
+                        )
+        except Exception as e:
+            logger.warning("Erro ao montar scorecard semafórico: %s", e)
+            st.info("Scorecard semafórico indisponível no momento.")
 
 def render_economia(ano_inicio: int, ano_fim: int) -> None:
     st.title("Estrutura Produtiva e Dinâmica Econômica")
@@ -843,6 +910,7 @@ def render_pib_estimado(ano_inicio: int, ano_fim: int) -> None:
             source="IBGE (oficial) + Modelo Holt-Winters/Híbrido (estimado)",
         )
         st.plotly_chart(fig, use_container_width=True)
+        add_chart_download_button(fig, filename="pib_historico_projecao")
 
         # Notas metodológicas obrigatórias
         st.caption(
